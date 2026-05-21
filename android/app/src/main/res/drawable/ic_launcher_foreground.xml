@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Ticket shape -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,38 Q30,32 36,32 L72,32 Q78,32 78,38 L78,70 Q78,76 72,76 L36,76 Q30,76 30,70 Z" />
+    <!-- Lines representing lottery numbers -->
+    <path
+        android:fillColor="#1565C0"
+        android:strokeColor="#1565C0"
+        android:strokeWidth="2"
+        android:pathData="M40,46 L68,46" />
+    <path
+        android:fillColor="#1565C0"
+        android:strokeColor="#1565C0"
+        android:strokeWidth="2"
+        android:pathData="M40,54 L68,54" />
+    <path
+        android:fillColor="#1565C0"
+        android:strokeColor="#1565C0"
+        android:strokeWidth="2"
+        android:pathData="M40,62 L56,62" />
+</vector>

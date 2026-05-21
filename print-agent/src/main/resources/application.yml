@@ -1,0 +1,20 @@
+server:
+  port: ${PRINT_AGENT_PORT:8765}
+  address: 127.0.0.1
+
+spring:
+  application:
+    name: bslottery-print-agent
+
+agent:
+  token: ${PRINT_AGENT_TOKEN:CHANGE_ME_BEFORE_USE}
+  charset: ${PRINT_AGENT_CHARSET:CP850}
+  log-jobs: true
+
+logging:
+  level:
+    dev.bsolutions: INFO
+  file:
+    name: logs/print-agent.log
+  pattern:
+    console: "%d{HH:mm:ss} %-5level %logger{36} - %msg%n"

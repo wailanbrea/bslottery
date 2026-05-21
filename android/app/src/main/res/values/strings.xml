@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BSLottery</string>
+    <string name="label_username">Usuario</string>
+    <string name="label_password">Contraseña</string>
+    <string name="label_server_url">URL del servidor</string>
+    <string name="btn_login">Iniciar sesión</string>
+    <string name="btn_logout">Cerrar sesión</string>
+    <string name="label_quick_sale">Venta rápida</string>
+    <string name="label_ticket_history">Historial de tickets</string>
+    <string name="label_cash_session">Sesión de caja</string>
+    <string name="label_sync">Sincronización</string>
+    <string name="label_settings">Configuración</string>
+    <string name="label_offline_mode">Modo sin conexión</string>
+    <string name="label_printer">Impresora Bluetooth</string>
+    <string name="msg_syncing">Sincronizando…</string>
+    <string name="msg_sync_ok">Sincronización completada</string>
+    <string name="msg_sync_error">Error de sincronización</string>
+    <string name="msg_offline">Sin conexión — modo offline activo</string>
+    <string name="msg_login_error">Credenciales incorrectas</string>
+    <string name="msg_server_error">Error al conectar con el servidor</string>
+    <string name="label_lottery">Lotería</string>
+    <string name="label_draw">Sorteo</string>
+    <string name="label_number">Número</string>
+    <string name="label_amount">Monto</string>
+    <string name="label_total">Total</string>
+    <string name="label_sell">Vender</string>
+    <string name="label_cancel">Cancelar</string>
+    <string name="label_confirm">Confirmar</string>
+    <string name="label_reprint">Reimprimir</string>
+    <string name="label_pending_sync">Pendientes de sync</string>
+    <string name="label_branch">Sucursal</string>
+    <string name="label_company">Empresa</string>
+    <string name="channel_sync_name">Sincronización BSLottery</string>
+    <string name="channel_sync_desc">Notificaciones de sincronización en segundo plano</string>
+</resources>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!--
+        Configuracion segura por defecto.
+        Los flavors emulator y lan sobrescriben este archivo para permitir HTTP
+        durante pruebas locales y operacion en red privada.
+    -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

@@ -1,0 +1,26 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Requests\Admin;
+
+use Illuminate\Foundation\Http\FormRequest;
+
+class UpdateRolePermissionsRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return $this->user()?->hasPermission('roles.assign_permissions') ?? false;
+    }
+
+    /**
+     * @return array<string, array<int, string>>
+     */
+    public function rules(): array
+    {
+        return [
+            'permission_ids' => ['array'],
+            'permission_ids.*' => ['integer', 'exists:permissions,id'],
+        ];
+    }
+}
