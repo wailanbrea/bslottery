@@ -201,7 +201,7 @@ class TicketDetailViewModel @Inject constructor(
         val s = _state.value
         viewModelScope.launch {
             _state.update { it.copy(printMessage = "Imprimiendo...") }
-            val serverUrl = sessionStore.serverUrlFlow.firstOrNull().orEmpty()
+            val serverUrl = sessionStore.effectiveServerUrlFlow.firstOrNull().orEmpty()
             val text = buildDetailTicketText(s, serverUrl)
             val ok = withContext(Dispatchers.IO) { printerManager.print(text) }
             _state.update { it.copy(printMessage = if (ok) null else "Sin impresora conectada") }

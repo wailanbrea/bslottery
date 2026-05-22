@@ -711,7 +711,7 @@ class SaleViewModel @Inject constructor(
     fun printLastTicket() {
         viewModelScope.launch {
             _state.update { it.copy(printMessage = "Imprimiendo...") }
-            val serverUrl = sessionStore.serverUrlFlow.firstOrNull().orEmpty()
+            val serverUrl = sessionStore.effectiveServerUrlFlow.firstOrNull().orEmpty()
             val text = buildTicketText(
                 jugadas = lastSoldJugadas,
                 total = lastSoldTotal,

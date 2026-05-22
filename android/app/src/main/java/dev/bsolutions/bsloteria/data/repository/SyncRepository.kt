@@ -14,6 +14,7 @@ import dev.bsolutions.bsloteria.data.remote.dto.OfflineSyncRequest
 import dev.bsolutions.bsloteria.data.remote.dto.OfflineSyncTicketRequest
 import dev.bsolutions.bsloteria.data.remote.dto.OfflineTicketRequest
 import dev.bsolutions.bsloteria.data.remote.dto.SyncBatchRequest
+import dev.bsolutions.bsloteria.util.NetworkErrors
 import dev.bsolutions.bsloteria.util.Result
 import dev.bsolutions.bsloteria.util.SessionStore
 import timber.log.Timber
@@ -36,23 +37,35 @@ class SyncRepository @Inject constructor(
     suspend fun syncCatalog(): Result<Unit> {
         return try {
             val response = api.getSyncData(null)
-            if (!response.isSuccessful) return Result.Error("Sync falló: ${response.code()}")
+            if (!response.isSuccessful) {
+                val msg = when (response.code()) {
+                    401 -> "Sesión expirada. Inicia sesión de nuevo."
+                    403 -> "Dispositivo no autorizado."
+                    in 500..599 -> "El servidor tuvo un error (${response.code()}). Intenta más tarde."
+                    else -> "Sync rechazado por servidor (${response.code()})."
+                }
+                Timber.w("Catalog sync HTTP %d", response.code())
+                return Result.Error(msg)
+            }
 
             val body = response.body()!!
 
-            drawDao.upsertAll(body.draws.map { d ->
-                DrawEntity(d.id, d.lotteryId, d.lotteryName, d.name, d.drawDate, d.drawTime, d.status, d.cutoffTime)
-            })
-            betTypeDao.upsertAll(body.betTypes.map { b ->
-                BetTypeEntity(b.id, b.name, b.code, b.multiplier, b.lotteryId)
-            })
+            drawDao.upsertAll(
+                body.draws.map { d ->
+                    DrawEntity(d.id, d.lotteryId, d.lotteryName, d.name, d.drawDate, d.drawTime, d.status, d.cutoffTime)
+                },
+            )
+            betTypeDao.upsertAll(
+                body.betTypes.map { b ->
+                    BetTypeEntity(b.id, b.name, b.code, b.multiplier, b.lotteryId)
+                },
+            )
 
             session.updateLastSync(System.currentTimeMillis())
             Timber.d("Catalog sync OK: ${body.draws.size} draws, ${body.betTypes.size} bet types")
             Result.Success(Unit)
         } catch (e: Exception) {
-            Timber.e(e, "Catalog sync error")
-            Result.Error(e.localizedMessage ?: "Error desconocido")
+            Result.Error(NetworkErrors.describe(e, "syncCatalog"))
         }
     }
 

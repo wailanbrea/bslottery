@@ -64,6 +64,18 @@ class StartupSyncViewModel @Inject constructor(
         startSync()
     }
 
+    /** Re-ejecuta toda la sincronizacion. Resetea pasos a PENDING y vuelve a lanzar. */
+    fun retrySync() {
+        _state.update {
+            it.copy(
+                isFinished = false,
+                hasErrors = false,
+                steps = it.steps.map { step -> step.copy(status = SyncStepStatus.PENDING, detail = null) },
+            )
+        }
+        startSync()
+    }
+
     private fun startSync() {
         viewModelScope.launch {
             updateStep("catalog", SyncStepStatus.RUNNING)

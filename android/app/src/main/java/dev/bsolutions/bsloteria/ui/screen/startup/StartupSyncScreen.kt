@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -115,23 +116,43 @@ fun StartupSyncScreen(
                     }
                 }
                 state.isFinished -> {
-                    Button(
-                        onClick = onContinue,
-                        modifier = Modifier.fillMaxWidth().height(52.dp)
-                    ) {
-                        Text(
-                            if (state.hasErrors) "Continuar de todos modos" else "Entrar al sistema",
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp
-                        )
-                    }
                     if (state.hasErrors) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            OutlinedButton(
+                                onClick = viewModel::retrySync,
+                                modifier = Modifier.weight(1f).height(52.dp),
+                            ) {
+                                Icon(Icons.Default.Refresh, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Reintentar", fontWeight = FontWeight.Bold)
+                            }
+                            Button(
+                                onClick = onContinue,
+                                modifier = Modifier.weight(1f).height(52.dp),
+                            ) {
+                                Text("Continuar", fontWeight = FontWeight.Bold)
+                            }
+                        }
                         Text(
                             "Hubo errores. Algunos datos pueden no estar actualizados.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         )
+                    } else {
+                        Button(
+                            onClick = onContinue,
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                        ) {
+                            Text(
+                                "Entrar al sistema",
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp,
+                            )
+                        }
                     }
                 }
                 else -> {

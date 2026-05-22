@@ -500,13 +500,100 @@ Una vez que Apache responde HTTPS, abre la URL en un navegador. El sistema te ll
 
 ## 10. App Android — apuntarla al VPS
 
-La app Android necesita que apuntes su servidor URL al dominio del VPS.
+La app Android tiene 3 flavors de build en `build.gradle.kts`:
 
-1. Compila el APK (`gradlew assembleRelease` en `/android`).
-2. Abre la app, ve a **Configuracion > Servidor**.
-3. Ingresa `https://tu-dominio.com` (sin trailing slash).
-4. Login con el COMPANY_OWNER que creaste.
-5. La app autorizara el device. Como admin en la web, ve a **Admin > Dispositivos** y marca el device como `AUTHORIZED`.
+| Flavor | URL apuntada | Cuándo usarlo |
+|---|---|---|
+| `emulator` | `http://10.0.2.2:8000` | Solo desde AVD de Android Studio contra `php artisan serve`. |
+| `lan` | `BSLOTTERY_LAN_SERVER_URL` de `gradle.properties` (default `http://192.168.1.100:8000`) | Cajero en la misma red WiFi que la PC con XAMPP. |
+| `production` | `BSLOTTERY_PRODUCTION_SERVER_URL` o el default `https://bslottery.bsolutions.dev` | **VPS público — usar este para producción.** |
+
+### 10.1 Compilar el APK production
+
+Desde PowerShell en el repo:
+
+```powershell
+cd C:\xampp\php\www\BSLotery\android
+.\build-production-release.ps1
+```
+
+Esto ejecuta `gradlew assembleProductionRelease` y deja el APK en
+`android/app/build/outputs/apk/production/release/`.
+
+> **CRÍTICO:** NO uses `gradlew assembleRelease` o `assembleLanRelease` para
+> apuntar al VPS. Esos flavors embeben una IP LAN en el binario y el cajero
+> verá errores tipo `failed to connect to /192.168.x.x` cuando esté fuera de
+> esa red. Siempre `assembleProductionRelease` para distribución externa.
+
+### 10.2 Override personalizado de URL en build
+
+Si necesitas una URL diferente al default para producción (ej. staging):
+
+1. Edita `android/gradle.properties` y agrega:
+   ```
+   BSLOTTERY_PRODUCTION_SERVER_URL=https://staging.tu-dominio.com
+   ```
+2. Compila: `.\build-production-release.ps1`
+
+### 10.3 Instalar y configurar la app
+
+1. Transfiere el APK al dispositivo (USB, ADB, descarga directa).
+2. Instala (acepta "Permitir orígenes desconocidos" la primera vez).
+3. Abre la app — solo verás **Usuario** y **Contraseña**. La URL del VPS está
+   embebida en el APK; el cajero no la ve.
+4. Login con el COMPANY_OWNER creado en el setup inicial.
+5. La app autoriza el device automáticamente. Ve al panel web del VPS
+   (`/admin/devices`) y marca el device como `AUTHORIZED`.
+6. Vuelve a la app y reintenta el login (o usa el botón **Reintentar** en
+   la pantalla de sincronización).
+
+### 10.4 Cambio temporal de URL desde Settings (soporte/QA)
+
+El admin puede cambiar la URL **desde dentro de la app** sin recompilar:
+
+1. Login normal.
+2. **Configuración → Servidor**.
+3. Verás el indicador "Usando default del APK" o "Override de admin activo"
+   con la URL actual.
+4. Edita el campo URL y guarda → todas las llamadas siguientes irán a esa URL.
+5. Para volver al default del APK → toca **Restablecer**.
+
+> Esto es un override persistente en el dispositivo. Se mantiene aunque el
+> usuario haga logout. Solo lo borra **Restablecer** o desinstalar la app.
+
+### 10.5 Troubleshooting Android
+
+#### "failed to connect to /192.168.x.x (port 8000)"
+
+Causas comunes:
+
+1. **El APK se compiló con flavor `lan` o `emulator`.** Recompila con
+   `.\build-production-release.ps1` y reinstala.
+2. **Hay un override viejo en el SessionStore.** Soluciones (en orden):
+   - **Configuración → Servidor → Restablecer** (más rápido si el cajero
+     puede entrar).
+   - Si no puede entrar al login: Settings de Android → Apps → BSLottery →
+     **Borrar datos**. Esto limpia el DataStore y la app arrancará con el
+     default del APK.
+   - Última opción: desinstalar y reinstalar el APK.
+3. **El dispositivo no tiene internet o el VPS está caído.** Verifica
+   abriendo `https://bslottery.bsolutions.dev` en el navegador del teléfono.
+
+#### "Dispositivo PENDING — autorízalo en el panel web"
+
+El device se registró pero ningún admin lo autorizó. Ve al panel web →
+`/admin/devices` → busca el device por nombre/UUID → click **Autorizar**.
+
+#### "Sesión expirada. Inicia sesión de nuevo."
+
+El token Sanctum caducó o se revocó. Logout → login.
+
+#### "No se encuentra el servidor."
+
+DNS no resuelve. Verifica:
+- El teléfono tiene internet (abre `8.8.8.8` en el navegador).
+- El dominio resuelve (desde otro device: `nslookup bslottery.bsolutions.dev`).
+- El cert SSL del VPS no está expirado (`curl -I https://bslottery.bsolutions.dev`).
 
 ---
 

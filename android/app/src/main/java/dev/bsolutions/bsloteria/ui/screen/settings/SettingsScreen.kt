@@ -123,25 +123,72 @@ fun SettingsScreen(
                             }
                         }
 
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (state.hasUrlOverride) {
+                                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.10f)
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    if (state.hasUrlOverride) "Override de admin activo" else "Usando default del APK",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (state.hasUrlOverride) {
+                                        MaterialTheme.colorScheme.tertiary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                )
+                                Text(
+                                    state.effectiveServerUrl,
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                if (state.hasUrlOverride && state.defaultServerUrl != state.effectiveServerUrl) {
+                                    Text(
+                                        "Default APK: ${state.defaultServerUrl}",
+                                        fontSize = 9.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    )
+                                }
+                            }
+                        }
+
                         OutlinedTextField(
                             value = state.serverUrl,
                             onValueChange = viewModel::onServerUrlChange,
                             label = { Text("URL del servidor") },
-                            placeholder = { Text("http://192.168.1.x:8000") },
+                            placeholder = { Text(state.defaultServerUrl) },
                             leadingIcon = { Icon(Icons.Default.CloudQueue, null) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             shape = RoundedCornerShape(10.dp)
                         )
-                        Button(
-                            onClick = viewModel::saveServerUrl,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(if (state.serverUrlSaved) Icons.Default.CheckCircle else Icons.Default.Save,
-                                null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(if (state.serverUrlSaved) "URL guardada" else "Guardar URL")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = viewModel::saveServerUrl,
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(if (state.serverUrlSaved) Icons.Default.CheckCircle else Icons.Default.Save,
+                                    null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(if (state.serverUrlSaved) "Guardada" else "Guardar")
+                            }
+                            OutlinedButton(
+                                onClick = viewModel::resetServerUrlToDefault,
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp),
+                                enabled = state.hasUrlOverride,
+                            ) {
+                                Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Restablecer")
+                            }
                         }
                     }
                 }

@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothDevice
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.bsolutions.bsloteria.BuildConfig
 import dev.bsolutions.bsloteria.data.repository.AuthRepository
 import dev.bsolutions.bsloteria.printer.BluetoothPrinterManager
 import dev.bsolutions.bsloteria.printer.ScanEvent
@@ -21,7 +22,14 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 data class SettingsUiState(
+    /** Lo que el usuario ve/edita en el campo. Vacio = sin override = usa default APK. */
     val serverUrl: String = "",
+    /** True cuando hay override activo en SessionStore (admin lo cambio explicitamente). */
+    val hasUrlOverride: Boolean = false,
+    /** URL real que la app esta usando (override si existe, sino default APK). */
+    val effectiveServerUrl: String = BuildConfig.SERVER_URL,
+    /** URL default compilada en el APK ([BuildConfig.SERVER_URL]). */
+    val defaultServerUrl: String = BuildConfig.SERVER_URL,
     val pairedDevices: List<BluetoothDevice> = emptyList(),
     val discoveredDevices: List<BluetoothDevice> = emptyList(),
     val connectedDeviceName: String? = null,
@@ -52,7 +60,14 @@ class SettingsViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             sessionStore.serverUrlFlow.collect { url ->
-                _state.update { it.copy(serverUrl = url ?: "") }
+                val hasOverride = !url.isNullOrBlank()
+                _state.update {
+                    it.copy(
+                        serverUrl = url ?: BuildConfig.SERVER_URL,
+                        hasUrlOverride = hasOverride,
+                        effectiveServerUrl = if (hasOverride) url!! else BuildConfig.SERVER_URL,
+                    )
+                }
             }
         }
         viewModelScope.launch {
@@ -81,10 +96,29 @@ class SettingsViewModel @Inject constructor(
 
     fun onServerUrlChange(url: String) = _state.update { it.copy(serverUrl = url, serverUrlSaved = false) }
 
+    /**
+     * Guarda override de URL. Si la URL coincide con el default del APK, limpia
+     * el override (no tiene sentido un override identico al default).
+     */
     fun saveServerUrl() {
         viewModelScope.launch {
-            sessionStore.updateServerUrl(_state.value.serverUrl.trimEnd('/'))
+            val trimmed = _state.value.serverUrl.trim().trimEnd('/')
+            if (trimmed.isBlank() || trimmed == BuildConfig.SERVER_URL.trimEnd('/')) {
+                sessionStore.clearServerUrlOverride()
+            } else {
+                sessionStore.updateServerUrl(trimmed)
+            }
             _state.update { it.copy(serverUrlSaved = true) }
+        }
+    }
+
+    /** Restablece la URL al default compilado en el APK ([BuildConfig.SERVER_URL]). */
+    fun resetServerUrlToDefault() {
+        viewModelScope.launch {
+            sessionStore.clearServerUrlOverride()
+            _state.update {
+                it.copy(serverUrl = BuildConfig.SERVER_URL, serverUrlSaved = true, hasUrlOverride = false)
+            }
         }
     }
 

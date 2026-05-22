@@ -6,6 +6,7 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import dev.bsolutions.bsloteria.BuildConfig
 import dev.bsolutions.bsloteria.data.remote.ApiService
 import dev.bsolutions.bsloteria.data.remote.AuthInterceptor
 import dev.bsolutions.bsloteria.data.remote.DynamicBaseUrlInterceptor
@@ -30,26 +31,41 @@ object NetworkModule {
     @Singleton
     fun provideOkHttpClient(
         authInterceptor: AuthInterceptor,
-        dynamicUrlInterceptor: DynamicBaseUrlInterceptor
+        dynamicUrlInterceptor: DynamicBaseUrlInterceptor,
     ): OkHttpClient = OkHttpClient.Builder()
         .addInterceptor(dynamicUrlInterceptor)
         .addInterceptor(authInterceptor)
-        .addInterceptor(HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
-        })
+        .addInterceptor(
+            HttpLoggingInterceptor().apply {
+                // BODY en debug, BASIC en release para evitar exponer payloads en logs de produccion.
+                level = if (BuildConfig.DEBUG) {
+                    HttpLoggingInterceptor.Level.BODY
+                } else {
+                    HttpLoggingInterceptor.Level.BASIC
+                }
+            },
+        )
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 
+    /**
+     * El baseUrl aqui es solo un placeholder requerido por Retrofit. Las requests
+     * reales se reescriben en [DynamicBaseUrlInterceptor] a la URL efectiva
+     * (override de Settings o [BuildConfig.SERVER_URL]).
+     */
     @Provides
     @Singleton
-    fun provideRetrofit(okHttpClient: OkHttpClient, moshi: Moshi): Retrofit =
-        Retrofit.Builder()
-            .baseUrl("http://localhost/api/")
+    fun provideRetrofit(okHttpClient: OkHttpClient, moshi: Moshi): Retrofit {
+        val placeholderBase = BuildConfig.SERVER_URL.trimEnd('/').plus("/api/")
+        return Retrofit.Builder()
+            .baseUrl(placeholderBase)
             .client(okHttpClient)
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
+    }
 
     @Provides
     @Singleton
