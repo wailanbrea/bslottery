@@ -25,11 +25,33 @@ class SecurityHeaders
         $response->headers->remove('X-Powered-By');
         $response->headers->remove('Server');
 
-        // Strict CSP only in production to avoid blocking local dev tools
+        // Strict CSP only in production to avoid blocking local dev tools.
+        //
+        // NOTA: 'unsafe-eval' es REQUERIDO por Alpine.js (cdn.jsdelivr.net) porque
+        // evalua las expresiones inline (x-data, x-show, @click, etc) usando el
+        // constructor Function() internamente. Sin esta directiva Alpine no se
+        // inicializa y todos los x-show quedan visibles, los @click no responden,
+        // etc -- el POS deja de funcionar.
+        //
+        // Mitigaciones aplicadas:
+        //   - script-src restringido a 'self' + cdn.jsdelivr.net (CDN confiable, hash-pinned).
+        //   - object-src 'none' bloquea plugins inseguros.
+        //   - base-uri 'self' evita inyeccion de base href.
+        //   - frame-ancestors 'self' bloquea clickjacking.
+        // Mejora futura: migrar a build CSP-safe de Alpine (@alpinejs/csp) que
+        // no usa eval, a cambio de refactor de blade templates (x-data -> Alpine.data()).
         if (app()->isProduction()) {
             $response->headers->set(
                 'Content-Security-Policy',
-                "default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net fonts.bunny.net; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net fonts.bunny.net; font-src 'self' fonts.bunny.net data:; img-src 'self' data:; connect-src 'self' http://127.0.0.1:8765;"
+                "default-src 'self'; ".
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' cdn.jsdelivr.net fonts.bunny.net; ".
+                "style-src 'self' 'unsafe-inline' cdn.jsdelivr.net fonts.bunny.net; ".
+                "font-src 'self' fonts.bunny.net data:; ".
+                "img-src 'self' data:; ".
+                "connect-src 'self' http://127.0.0.1:8765; ".
+                "object-src 'none'; ".
+                "base-uri 'self'; ".
+                "frame-ancestors 'self';"
             );
         }
 

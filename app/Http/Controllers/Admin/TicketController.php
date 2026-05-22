@@ -7,10 +7,10 @@ use App\Http\Requests\Admin\TicketPreviewRequest;
 use App\Http\Requests\Admin\TicketSaleRequest;
 use App\Models\BetType;
 use App\Models\Branch;
-use App\Models\CashSession;
 use App\Models\Draw;
 use App\Models\Ticket;
 use App\Services\Cash\CashService;
+use App\Services\Lottery\DrawGenerationService;
 use App\Services\Lottery\LimitValidationService;
 use App\Services\Sales\TicketSaleService;
 use App\Support\Money;
@@ -26,6 +26,7 @@ class TicketController extends Controller
         private TicketSaleService $saleService,
         private CashService $cashService,
         private LimitValidationService $limitValidator,
+        private DrawGenerationService $drawGenerationService,
     ) {}
 
     public function index(Request $request): View
@@ -59,6 +60,8 @@ class TicketController extends Controller
         }
 
         $branch = Branch::findOrFail($branchId);
+        $this->drawGenerationService->generateForCompany((int) $companyId, days: 2);
+
         $session = $this->cashService->getActiveSession($branchId, auth()->id());
         $draws = Draw::with('lottery')
             ->where('company_id', $companyId)
@@ -117,7 +120,7 @@ class TicketController extends Controller
             }
 
             return redirect()->route('admin.tickets.show', $ticket)
-                ->with('status', "Ticket #{$ticket->ticket_number} vendido. Total: RD\$ " . number_format($ticket->total_amount, 2));
+                ->with('status', "Ticket #{$ticket->ticket_number} vendido. Total: RD\$ ".number_format($ticket->total_amount, 2));
         } catch (\RuntimeException $e) {
             if ($request->expectsJson()) {
                 return response()->json([
@@ -153,8 +156,8 @@ class TicketController extends Controller
     public function checkLimit(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'draw_id'      => 'required|exists:draws,id',
-            'bet_type_id'  => 'required|exists:bet_types,id',
+            'draw_id' => 'required|exists:draws,id',
+            'bet_type_id' => 'required|exists:bet_types,id',
             'number_value' => 'required|string|max:20',
         ]);
 
@@ -163,17 +166,17 @@ class TicketController extends Controller
             return response()->json(['available' => null, 'max_bet' => null, 'blocked' => false]);
         }
 
-        $draw     = Draw::findOrFail($data['draw_id']);
-        $betType  = BetType::findOrFail($data['bet_type_id']);
-        $branch   = Branch::findOrFail($branchId);
+        $draw = Draw::findOrFail($data['draw_id']);
+        $betType = BetType::findOrFail($data['bet_type_id']);
+        $branch = Branch::findOrFail($branchId);
         $numberValue = str_pad($data['number_value'], $betType->digits_count, '0', STR_PAD_LEFT);
 
         $available = $this->limitValidator->getAvailableForNumber($branch, $draw, $betType, $numberValue);
 
         return response()->json([
             'available' => $available,
-            'max_bet'   => $betType->max_amount !== null ? (float) $betType->max_amount : null,
-            'blocked'   => $available !== null && $available <= 0,
+            'max_bet' => $betType->max_amount !== null ? (float) $betType->max_amount : null,
+            'blocked' => $available !== null && $available <= 0,
         ]);
     }
 
@@ -251,7 +254,7 @@ class TicketController extends Controller
                     'status' => $winner->status,
                     'number_value' => $winner->number_value,
                     'bet_type' => $winner->betType?->name,
-                    'draw' => trim(($winner->draw?->lottery?->name ?? '') . ' ' . ($winner->draw?->name ?? '')),
+                    'draw' => trim(($winner->draw?->lottery?->name ?? '').' '.($winner->draw?->name ?? '')),
                     'prize_amount' => (string) $winner->prize_amount,
                     'can_pay' => $winner->status === 'RELEASED' && $request->user()?->hasPermission('prizes.pay'),
                     'pay_url' => route('admin.prizes.pay', $winner),

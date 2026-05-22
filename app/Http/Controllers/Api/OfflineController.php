@@ -5,29 +5,35 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Branch;
 use App\Models\BetType;
+use App\Models\Branch;
 use App\Models\Draw;
 use App\Models\Lottery;
 use App\Models\OfflineSession;
 use App\Models\PayoutRule;
 use App\Models\SyncConflict;
+use App\Models\User;
+use App\Services\Lottery\DrawGenerationService;
 use App\Services\Offline\OfflineSyncService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class OfflineController extends Controller
 {
-    public function __construct(private readonly OfflineSyncService $syncService) {}
+    public function __construct(
+        private readonly OfflineSyncService $syncService,
+        private readonly DrawGenerationService $drawGenerationService,
+    ) {}
 
     /**
      * Bootstrap data for online operation (lotteries, draws, bet types, payout rules).
      */
     public function bootstrap(Request $request): JsonResponse
     {
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
         $companyId = $user->company_id;
+        $this->drawGenerationService->generateForCompany((int) $companyId, days: 2);
 
         $lotteries = Lottery::where('status', 'ACTIVE')
             ->where(fn ($q) => $q->where('company_id', $companyId)->orWhereNull('company_id'))
@@ -50,11 +56,11 @@ class OfflineController extends Controller
             ->get(['id', 'bet_type_id', 'lottery_id', 'branch_id', 'multiplier', 'position']);
 
         return response()->json([
-            'lotteries'    => $lotteries,
-            'draws'        => $draws,
-            'bet_types'    => $betTypes,
+            'lotteries' => $lotteries,
+            'draws' => $draws,
+            'bet_types' => $betTypes,
             'payout_rules' => $payoutRules,
-            'server_time'  => now()->toISOString(),
+            'server_time' => now()->toISOString(),
         ]);
     }
 
@@ -64,13 +70,13 @@ class OfflineController extends Controller
     public function openSession(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'branch_id'      => 'required|exists:branches,id',
-            'ticket_limit'   => 'nullable|integer|min:1|max:500',
-            'amount_limit'   => 'nullable|numeric|min:0.01',
-            'expires_hours'  => 'nullable|integer|min:1|max:24',
+            'branch_id' => 'required|exists:branches,id',
+            'ticket_limit' => 'nullable|integer|min:1|max:500',
+            'amount_limit' => 'nullable|numeric|min:0.01',
+            'expires_hours' => 'nullable|integer|min:1|max:24',
         ]);
 
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
         $branch = Branch::findOrFail($data['branch_id']);
 
@@ -123,35 +129,35 @@ class OfflineController extends Controller
         }
 
         $data = $request->validate([
-            'session_uuid'  => 'required|uuid',
-            'tickets'       => 'required|array|min:1|max:200',
-            'tickets.*.uuid'    => 'required|uuid',
+            'session_uuid' => 'required|uuid',
+            'tickets' => 'required|array|min:1|max:200',
+            'tickets.*.uuid' => 'required|uuid',
             'tickets.*.draw_id' => 'required|integer',
             'tickets.*.sold_at' => 'nullable|date',
-            'tickets.*.plays'   => 'required|array|min:1',
-            'tickets.*.plays.*.bet_type_id'  => 'required|integer',
+            'tickets.*.plays' => 'required|array|min:1',
+            'tickets.*.plays.*.bet_type_id' => 'required|integer',
             'tickets.*.plays.*.number_value' => 'required|string|max:20',
-            'tickets.*.plays.*.amount'       => 'required|numeric|min:0.01',
-            'tickets.*.plays.*.position'     => 'nullable|string',
-            'payload_hash'  => 'nullable|string|max:64',
+            'tickets.*.plays.*.amount' => 'required|numeric|min:0.01',
+            'tickets.*.plays.*.position' => 'nullable|string',
+            'payload_hash' => 'nullable|string|max:64',
         ]);
 
         $batch = $this->syncService->processBatch($session, $data['tickets'] ?? [], $data['payload_hash'] ?? null);
 
         return response()->json([
-            'batch_id'         => $batch->id,
-            'status'           => $batch->status,
-            'total_tickets'    => $batch->total_tickets,
+            'batch_id' => $batch->id,
+            'status' => $batch->status,
+            'total_tickets' => $batch->total_tickets,
             'accepted_tickets' => $batch->accepted_tickets,
             'rejected_tickets' => $batch->rejected_tickets,
-            'accepted_uuids'   => $batch->getAttribute('accepted_uuids') ?? [],
-            'failed'           => $batch->getAttribute('failed') ?? [],
-            'conflicts'        => $batch->conflicts->map(fn ($c) => [
-                'id'             => $c->id,
-                'ticket_uuid'    => $c->ticket_data['uuid'] ?? null,
-                'conflict_type'  => $c->conflict_type,
+            'accepted_uuids' => $batch->getAttribute('accepted_uuids') ?? [],
+            'failed' => $batch->getAttribute('failed') ?? [],
+            'conflicts' => $batch->conflicts->map(fn ($c) => [
+                'id' => $c->id,
+                'ticket_uuid' => $c->ticket_data['uuid'] ?? null,
+                'conflict_type' => $c->conflict_type,
                 'conflict_reason' => $c->conflict_reason,
-                'status'         => $c->status,
+                'status' => $c->status,
             ]),
         ]);
     }
@@ -161,7 +167,7 @@ class OfflineController extends Controller
      */
     public function conflicts(Request $request): JsonResponse
     {
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
 
         $conflicts = SyncConflict::with(['syncBatch', 'offlineSession.user', 'branch'])
@@ -180,7 +186,7 @@ class OfflineController extends Controller
      */
     public function resolveConflict(Request $request, SyncConflict $conflict): JsonResponse
     {
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
 
         if ($conflict->company_id !== $user->company_id) {
@@ -188,7 +194,7 @@ class OfflineController extends Controller
         }
 
         $data = $request->validate([
-            'action'     => 'required|in:accept,reject',
+            'action' => 'required|in:accept,reject',
             'resolution' => 'nullable|string|max:500',
         ]);
 
@@ -205,7 +211,7 @@ class OfflineController extends Controller
             abort(422, 'Se requiere session_uuid.');
         }
 
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
 
         $session = OfflineSession::where('uuid', $uuid)

@@ -10,9 +10,11 @@ use App\Models\CashSession;
 use App\Models\Device;
 use App\Models\Draw;
 use App\Models\Ticket;
+use App\Models\User;
 use App\Models\WinnerTicket;
 use App\Services\Audit\AuditService;
 use App\Services\Cash\CashService;
+use App\Services\Lottery\DrawGenerationService;
 use App\Services\Lottery\LimitValidationService;
 use App\Services\Results\PrizePaymentService;
 use App\Services\Sales\TicketSaleService;
@@ -28,14 +30,15 @@ class MobileController extends Controller
         private readonly CashService $cashService,
         private readonly PrizePaymentService $prizeService,
         private readonly LimitValidationService $limitValidator,
+        private readonly DrawGenerationService $drawGenerationService,
     ) {}
 
     // GET /api/mobile/tickets/check-limit?draw_id=&bet_type_id=&number_value=
     public function checkLimit(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'draw_id'      => 'required|exists:draws,id',
-            'bet_type_id'  => 'required|exists:bet_types,id',
+            'draw_id' => 'required|exists:draws,id',
+            'bet_type_id' => 'required|exists:bet_types,id',
             'number_value' => 'required|string|max:20',
         ]);
 
@@ -46,7 +49,7 @@ class MobileController extends Controller
             return response()->json(['available' => null, 'max_bet' => null, 'blocked' => false]);
         }
 
-        $draw    = Draw::findOrFail($data['draw_id']);
+        $draw = Draw::findOrFail($data['draw_id']);
         $betType = BetType::findOrFail($data['bet_type_id']);
         $numberValue = str_pad($data['number_value'], $betType->digits_count, '0', STR_PAD_LEFT);
 
@@ -54,8 +57,8 @@ class MobileController extends Controller
 
         return response()->json([
             'available' => $available,
-            'max_bet'   => $betType->max_amount !== null ? (float) $betType->max_amount : null,
-            'blocked'   => $available !== null && $available <= 0,
+            'max_bet' => $betType->max_amount !== null ? (float) $betType->max_amount : null,
+            'blocked' => $available !== null && $available <= 0,
         ]);
     }
 
@@ -79,7 +82,7 @@ class MobileController extends Controller
             return response()->json(['message' => 'Usuario o correo requerido.'], 422);
         }
 
-        $user = \App\Models\User::query()
+        $user = User::query()
             ->where('email', $login)
             ->orWhere('username', $login)
             ->first();
@@ -124,14 +127,14 @@ class MobileController extends Controller
 
         return response()->json([
             'token' => $token,
-            'user'  => [
-                'id'          => $user->id,
-                'name'        => $user->name,
-                'email'       => $user->email,
-                'roles'       => $user->role ? [$user->role->name] : [],
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'roles' => $user->role ? [$user->role->name] : [],
                 'permissions' => $permissions,
             ],
-            'branch'  => $user->branch  ? ['id' => $user->branch->id,  'name' => $user->branch->name,  'company_id' => $user->branch->company_id]  : null,
+            'branch' => $user->branch ? ['id' => $user->branch->id,  'name' => $user->branch->name,  'company_id' => $user->branch->company_id] : null,
             'company' => $user->company ? ['id' => $user->company->id, 'name' => $user->company->name] : null,
             'device_status' => $device->status,
         ]);
@@ -141,6 +144,7 @@ class MobileController extends Controller
     public function logout(Request $request): JsonResponse
     {
         $request->user()->currentAccessToken()->delete();
+
         return response()->json(['message' => 'OK']);
     }
 
@@ -148,6 +152,7 @@ class MobileController extends Controller
     public function syncData(Request $request): JsonResponse
     {
         $user = $request->user();
+        $this->drawGenerationService->generateForCompany((int) $user->company_id, days: 2);
 
         $draws = Draw::where('company_id', $user->company_id)
             ->where('status', 'OPEN')
@@ -157,13 +162,13 @@ class MobileController extends Controller
             ->orderBy('scheduled_time')
             ->get()
             ->map(fn ($d) => [
-                'id'          => $d->id,
-                'lottery_id'  => $d->lottery_id,
-                'lottery_name'=> $d->lottery->name ?? '',
-                'name'        => $d->name,
-                'draw_date'   => $d->draw_date?->toDateString(),
-                'draw_time'   => substr((string) $d->scheduled_time, 0, 5),
-                'status'      => $d->status,
+                'id' => $d->id,
+                'lottery_id' => $d->lottery_id,
+                'lottery_name' => $d->lottery->name ?? '',
+                'name' => $d->name,
+                'draw_date' => $d->draw_date?->toDateString(),
+                'draw_time' => substr((string) $d->scheduled_time, 0, 5),
+                'status' => $d->status,
                 'cutoff_time' => substr((string) $d->close_time, 0, 5),
             ]);
 
@@ -174,16 +179,16 @@ class MobileController extends Controller
             ->orderBy('name')
             ->get()
             ->map(fn ($b) => [
-                'id'          => $b->id,
-                'name'        => $b->name,
-                'code'        => $b->code,
-                'multiplier'  => '0.00',
-                'lottery_id'  => null,
+                'id' => $b->id,
+                'name' => $b->name,
+                'code' => $b->code,
+                'multiplier' => '0.00',
+                'lottery_id' => null,
             ]);
 
         return response()->json([
-            'draws'       => $draws,
-            'bet_types'   => $betTypes,
+            'draws' => $draws,
+            'bet_types' => $betTypes,
             'server_time' => now()->toISOString(),
         ]);
     }
@@ -216,14 +221,14 @@ class MobileController extends Controller
     public function storeTicket(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'uuid'         => 'required|uuid',
-            'draw_id'      => 'required|integer|exists:draws,id',
-            'details'      => 'required|array|min:1',
+            'uuid' => 'required|uuid',
+            'draw_id' => 'required|integer|exists:draws,id',
+            'details' => 'required|array|min:1',
             'details.*.number_value' => 'required|string|max:20',
-            'details.*.bet_type_id'  => 'required|integer|exists:bet_types,id',
-            'details.*.amount'       => 'required|numeric|min:1',
-            'sold_at'      => 'nullable|date',
-            'offline'      => 'boolean',
+            'details.*.bet_type_id' => 'required|integer|exists:bet_types,id',
+            'details.*.amount' => 'required|numeric|min:1',
+            'sold_at' => 'nullable|date',
+            'offline' => 'boolean',
         ]);
 
         // Idempotency: return existing ticket if UUID already processed
@@ -254,14 +259,14 @@ class MobileController extends Controller
     public function storeTicketsBatch(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'tickets'      => 'required|array|min:1|max:50',
-            'tickets.*.uuid'       => 'required|uuid',
-            'tickets.*.draw_id'    => 'required|integer',
-            'tickets.*.details'    => 'required|array|min:1',
+            'tickets' => 'required|array|min:1|max:50',
+            'tickets.*.uuid' => 'required|uuid',
+            'tickets.*.draw_id' => 'required|integer',
+            'tickets.*.details' => 'required|array|min:1',
             'tickets.*.details.*.number_value' => 'required|string',
-            'tickets.*.details.*.bet_type_id'  => 'required|integer',
-            'tickets.*.details.*.amount'        => 'required|numeric|min:1',
-            'tickets.*.sold_at'    => 'nullable|date',
+            'tickets.*.details.*.bet_type_id' => 'required|integer',
+            'tickets.*.details.*.amount' => 'required|numeric|min:1',
+            'tickets.*.sold_at' => 'nullable|date',
         ]);
 
         $synced = [];
@@ -271,6 +276,7 @@ class MobileController extends Controller
             $existing = Ticket::where('uuid', $ticketData['uuid'])->first();
             if ($existing) {
                 $synced[] = $ticketData['uuid'];
+
                 continue;
             }
 
@@ -311,7 +317,7 @@ class MobileController extends Controller
     // GET /api/mobile/tickets/{uuid}
     public function ticket(Request $request, string $uuid): JsonResponse
     {
-        $user   = $request->user();
+        $user = $request->user();
         $ticket = Ticket::where('uuid', $uuid)
             ->where('company_id', $user->company_id)
             ->with('details.betType')
@@ -460,7 +466,7 @@ class MobileController extends Controller
                 module: 'Cash',
                 action: 'closed',
                 auditable: $session,
-                description: "Caja cerrada desde Android. Esperado: RD\$ ".number_format((float) $session->expected_cash, 2)
+                description: 'Caja cerrada desde Android. Esperado: RD$ '.number_format((float) $session->expected_cash, 2)
                     .', Contado: RD$ '.number_format((float) $session->counted_cash, 2),
             );
 
@@ -595,12 +601,12 @@ class MobileController extends Controller
     private function formatTicket(Ticket $ticket, bool $withDetails = false): array
     {
         $result = [
-            'id'           => $ticket->id,
-            'uuid'         => $ticket->uuid,
-            'ticket_number'=> $ticket->ticket_number,
+            'id' => $ticket->id,
+            'uuid' => $ticket->uuid,
+            'ticket_number' => $ticket->ticket_number,
             'total_amount' => $ticket->total_amount,
-            'status'       => $ticket->status,
-            'sold_at'      => $ticket->sold_at,
+            'status' => $ticket->status,
+            'sold_at' => $ticket->sold_at,
         ];
 
         if ($withDetails) {
@@ -612,12 +618,12 @@ class MobileController extends Controller
             $result['lottery_name'] = $firstDetail?->draw?->lottery?->name;
 
             $result['details'] = $ticket->details->map(fn ($d) => [
-                'id'             => $d->id,
-                'number_value'   => $d->number_value,
-                'bet_type_name'  => $d->betType->name ?? '',
-                'bet_type_id'    => $d->bet_type_id,
-                'amount'         => $d->amount,
-                'potential_prize'=> $d->possible_prize,
+                'id' => $d->id,
+                'number_value' => $d->number_value,
+                'bet_type_name' => $d->betType->name ?? '',
+                'bet_type_id' => $d->bet_type_id,
+                'amount' => $d->amount,
+                'potential_prize' => $d->possible_prize,
             ]);
         }
 
