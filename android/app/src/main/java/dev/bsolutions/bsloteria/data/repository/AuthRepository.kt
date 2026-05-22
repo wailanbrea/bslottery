@@ -43,6 +43,7 @@ class AuthRepository @Inject constructor(
                     token = body.token,
                     userId = body.user.id,
                     userName = body.user.name,
+                    userEmail = body.user.email,
                     branchId = body.branch?.id ?: 0L,
                     branchName = body.branch?.name ?: "",
                     companyId = body.company?.id ?: 0L,
