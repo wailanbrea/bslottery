@@ -433,7 +433,10 @@ class SaleViewModel @Inject constructor(
                 amountInput = "",
                 isMontoActive = false,
                 voltearActivo = false,
-                error = null
+                error = null,
+                // Dialogs sin sentido sin jugadas: cerrarlos defensivamente.
+                combinarDialog = CombinarDialogState(),
+                limitDialog = LimitDialogState(),
             )
         }
     }
@@ -702,7 +705,11 @@ class SaleViewModel @Inject constructor(
                 it.copy(
                     isLoading = false,
                     successUuid = if (!hasError) lastUuid else null,
-                    jugadas = if (!hasError) emptyList() else it.jugadas
+                    jugadas = if (!hasError) emptyList() else it.jugadas,
+                    // Cerrar dialogs cuando la venta fue exitosa (no quedan
+                    // jugadas, los dialogs no tienen sentido).
+                    combinarDialog = if (!hasError) CombinarDialogState() else it.combinarDialog,
+                    limitDialog = if (!hasError) LimitDialogState() else it.limitDialog,
                 )
             }
 

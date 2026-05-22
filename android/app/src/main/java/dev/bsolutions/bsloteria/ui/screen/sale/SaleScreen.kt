@@ -165,8 +165,17 @@ fun SaleScreen(
         }
     }
 
-    // Dialog de pre-check de limite
-    if (state.limitDialog.visible) {
+    // Auto-limpieza defensiva: si el dialog quedo abierto de una sesion anterior
+    // pero ya no hay jugadas (post-venta, post-clearAll, navegacion), cerrarlo.
+    LaunchedEffect(state.jugadas.isEmpty()) {
+        if (state.jugadas.isEmpty()) {
+            if (state.combinarDialog.visible) viewModel.cancelCombinarDialog()
+            if (state.limitDialog.visible) viewModel.cancelLimitDialog()
+        }
+    }
+
+    // Dialog de pre-check de limite (solo si tiene conflictos reales)
+    if (state.limitDialog.visible && state.limitDialog.conflicts.isNotEmpty()) {
         LimitConflictDialog(
             dialog = state.limitDialog,
             onDecisionChange = viewModel::updateLimitDecision,
@@ -177,8 +186,8 @@ fun SaleScreen(
         )
     }
 
-    // Dialog de combinar — memoizar cálculos para no recalcular en cada checkbox.
-    if (state.combinarDialog.visible) {
+    // Dialog de combinar (solo si tiene jugadas para combinar)
+    if (state.combinarDialog.visible && state.jugadas.isNotEmpty()) {
         val preview by remember(state.jugadas, state.combinarDialog) {
             derivedStateOf { viewModel.combinarPreview() }
         }
