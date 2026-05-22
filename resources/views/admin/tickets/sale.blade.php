@@ -105,7 +105,7 @@ $betTypes = \App\Models\BetType::where('company_id', $companyId)->where('status'
                 </button>
             </div>
         </div>
-        <div class="pos-lottery-sections">
+        <div class="pos-lottery-sections" x-cloak>
             @forelse ($drawColumns as $sectionTitle => $sectionDraws)
                 <section class="pos-lottery-section" style="--draw-count: {{ max(1, $sectionDraws->count()) }};" x-show="sectionHasVisibleDraws('{{ $sectionTitle }}')">
                     <div class="pos-section-title">{{ $sectionTitle }}</div>
@@ -184,7 +184,7 @@ $betTypes = \App\Models\BetType::where('company_id', $companyId)->where('status'
                 </div>
                     <div class="mt-2 p-2 rounded-3 bg-white bg-opacity-10 border border-white border-opacity-25"
                          x-show="amountPromptVisible"
-                         x-transition>
+                         x-cloak>
                         <div class="small text-white fw-bold mb-2">
                             Monto para <span class="font-monospace" x-text="pendingPlayValue"></span>
                         </div>
@@ -1095,7 +1095,14 @@ function posTerminal() {
             this.pendingPlayValue = value;
             this.pendingAmount = '';
             this.amountPromptVisible = true;
-            this.$nextTick(() => this.$refs.amountInput.focus());
+            // x-show aplica display="" en el siguiente tick. Esperamos un poco mas
+            // de un frame para que el browser pinte y el input sea focusable.
+            setTimeout(() => {
+                const el = this.$refs.amountInput;
+                if (!el) return;
+                el.focus();
+                el.select();
+            }, 50);
         },
 
         confirmPendingAmount() {
