@@ -31,8 +31,9 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "SERVER_URL", "http://10.0.2.2:8000".asBuildConfigString())
-        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8000/api/\"")
+        // Default = produccion (https://bslottery.bsolutions.dev). Los flavors lo sobreescriben.
+        buildConfigField("String", "SERVER_URL", "https://bslottery.bsolutions.dev".asBuildConfigString())
+        buildConfigField("String", "API_BASE_URL", "\"https://bslottery.bsolutions.dev/api/\"")
 
         // Presets que el usuario puede alternar en LoginScreen / Settings sin reinstalar.
         // EMULATOR_URL es fijo (alias del host visto desde AVD). LAN_URL viene de
@@ -76,7 +77,7 @@ android {
             dimension = "environment"
 
             val serverUrl = providers.gradleProperty("BSLOTTERY_PRODUCTION_SERVER_URL")
-                .orElse("https://api.tu-dominio.com")
+                .orElse("https://bslottery.bsolutions.dev")
                 .get()
                 .trimEnd('/')
 

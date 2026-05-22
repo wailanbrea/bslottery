@@ -10,6 +10,7 @@ import dev.bsolutions.bsloteria.util.SessionStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -19,15 +20,14 @@ import javax.inject.Inject
 data class LoginUiState(
     val email: String = "",
     val password: String = "",
-    val serverUrl: String = BuildConfig.SERVER_URL,
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
 )
 
 @HiltViewModel
 class LoginViewModel @Inject constructor(
     private val authRepository: AuthRepository,
-    private val sessionStore: SessionStore
+    private val sessionStore: SessionStore,
 ) : ViewModel() {
 
     val isLoggedIn: StateFlow<Boolean> = sessionStore.tokenFlow
@@ -39,17 +39,21 @@ class LoginViewModel @Inject constructor(
 
     fun onEmailChange(v: String) = _state.update { it.copy(email = v, error = null) }
     fun onPasswordChange(v: String) = _state.update { it.copy(password = v, error = null) }
-    fun onServerUrlChange(v: String) = _state.update { it.copy(serverUrl = v, error = null) }
 
     fun login(onSuccess: () -> Unit) {
         val s = _state.value
-        if (s.email.isBlank() || s.password.isBlank() || s.serverUrl.isBlank()) {
-            _state.update { it.copy(error = "Todos los campos son obligatorios") }
+        if (s.email.isBlank() || s.password.isBlank()) {
+            _state.update { it.copy(error = "Usuario y contraseña son obligatorios") }
             return
         }
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
-            when (val result = authRepository.login(s.email, s.password, s.serverUrl.trimEnd('/'))) {
+            // URL = la guardada en SessionStore (Settings) o el default del BuildConfig.
+            // Ya no se muestra al cajero — Settings sigue permitiendo cambiarla para soporte.
+            val savedUrl = sessionStore.serverUrlFlow.firstOrNull()?.takeIf { it.isNotBlank() }
+            val serverUrl = (savedUrl ?: BuildConfig.SERVER_URL).trimEnd('/')
+
+            when (val result = authRepository.login(s.email, s.password, serverUrl)) {
                 is Result.Success -> onSuccess()
                 is Result.Error -> _state.update { it.copy(isLoading = false, error = result.message) }
                 else -> {}

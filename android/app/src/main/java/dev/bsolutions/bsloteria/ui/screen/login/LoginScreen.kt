@@ -9,13 +9,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import dev.bsolutions.bsloteria.util.ServerPresets
 
 @Composable
 fun LoginScreen(
@@ -47,19 +44,6 @@ fun LoginScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            ServerPresetChips(
-                currentUrl = state.serverUrl,
-                onSelect = viewModel::onServerUrlChange,
-            )
-
-            OutlinedTextField(
-                value = state.serverUrl,
-                onValueChange = viewModel::onServerUrlChange,
-                label = { Text("URL del servidor") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
-            )
             OutlinedTextField(
                 value = state.email,
                 onValueChange = viewModel::onEmailChange,
@@ -115,37 +99,5 @@ fun LoginScreen(
                 }
             }
         }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ServerPresetChips(
-    currentUrl: String,
-    onSelect: (String) -> Unit,
-) {
-    if (ServerPresets.ALL.isEmpty()) return
-    val active = ServerPresets.match(currentUrl)
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = "Conexion rapida",
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ServerPresets.ALL.forEach { preset ->
-                FilterChip(
-                    selected = preset == active,
-                    onClick = { onSelect(preset.url) },
-                    label = { Text(preset.label) },
-                )
-            }
-        }
-        Text(
-            text = active?.let { "${it.label}: ${it.url}" } ?: "Custom: $currentUrl",
-            fontSize = 10.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }

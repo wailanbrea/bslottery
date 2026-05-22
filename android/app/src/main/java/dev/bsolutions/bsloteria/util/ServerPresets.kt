@@ -14,8 +14,9 @@ data class ServerPreset(val label: String, val url: String)
 
 object ServerPresets {
     val ALL: List<ServerPreset> = listOfNotNull(
-        ServerPreset("Emulador", BuildConfig.EMULATOR_URL).takeIf { it.url.isNotBlank() },
-        ServerPreset("LAN", BuildConfig.LAN_URL).takeIf { it.url.isNotBlank() },
+        ServerPreset("Producción", BuildConfig.SERVER_URL).takeIf { it.url.isNotBlank() },
+        ServerPreset("Emulador", BuildConfig.EMULATOR_URL).takeIf { it.url.isNotBlank() && it.url != BuildConfig.SERVER_URL },
+        ServerPreset("LAN", BuildConfig.LAN_URL).takeIf { it.url.isNotBlank() && it.url != BuildConfig.SERVER_URL },
     )
 
     /** Devuelve el preset cuya URL coincida con el valor dado, o null si es custom. */
