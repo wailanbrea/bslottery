@@ -22,7 +22,6 @@ import androidx.compose.ui.unit.sp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import dev.bsolutions.bsloteria.BuildConfig
-import dev.bsolutions.bsloteria.util.ServerPresets
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -104,25 +103,6 @@ fun SettingsScreen(
                 SectionLabel("Servidor")
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        if (ServerPresets.ALL.isNotEmpty()) {
-                            val active = ServerPresets.match(state.serverUrl)
-                            Text(
-                                "Conexion rapida",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                ServerPresets.ALL.forEach { preset ->
-                                    FilterChip(
-                                        selected = preset == active,
-                                        onClick = { viewModel.onServerUrlChange(preset.url) },
-                                        label = { Text(preset.label) },
-                                    )
-                                }
-                            }
-                        }
-
                         Surface(
                             shape = RoundedCornerShape(6.dp),
                             color = if (state.hasUrlOverride) {

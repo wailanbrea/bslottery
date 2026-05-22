@@ -1,11 +1,11 @@
-# Build helper: compila el APK release con el flavor PRODUCTION (HTTPS al VPS).
+# Build helper: compila el APK release (apunta al VPS https://bslottery.bsolutions.dev).
 #
 # Uso desde PowerShell:
 #   cd C:\xampp\php\www\BSLotery\android
 #   .\build-production-release.ps1
 #
 # Output:
-#   android/app/build/outputs/apk/production/release/app-production-release.apk
+#   android/app/build/outputs/apk/release/app-release.apk
 #
 # Si necesitas un APK debug (mas pesado, instalable directo sin firmar):
 #   .\build-production-release.ps1 -Variant debug
@@ -17,10 +17,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $variantCap = ($Variant.Substring(0, 1).ToUpper() + $Variant.Substring(1))
-$task = "assembleProduction$variantCap"
+$task = "assemble$variantCap"
 
-Write-Host "==> Compilando flavor PRODUCTION (variant: $Variant)" -ForegroundColor Cyan
+Write-Host "==> Compilando APK (variant: $Variant)" -ForegroundColor Cyan
 Write-Host "    Tarea Gradle: $task"
+Write-Host "    URL backend:  https://bslottery.bsolutions.dev"
 Write-Host ""
 
 & .\gradlew $task
@@ -31,7 +32,7 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-$apkDir = "app\build\outputs\apk\production\$Variant"
+$apkDir = "app\build\outputs\apk\$Variant"
 $apk = Get-ChildItem -Path $apkDir -Filter '*.apk' -ErrorAction SilentlyContinue | Select-Object -First 1
 
 if (-not $apk) {

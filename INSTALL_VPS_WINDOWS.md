@@ -500,15 +500,12 @@ Una vez que Apache responde HTTPS, abre la URL en un navegador. El sistema te ll
 
 ## 10. App Android — apuntarla al VPS
 
-La app Android tiene 3 flavors de build en `build.gradle.kts`:
+La app Android tiene **una sola build** que siempre apunta al VPS
+`https://bslottery.bsolutions.dev`. No hay flavors LAN/emulator/staging —
+todo es producción. Si necesitas testear contra otro backend, se hace via
+override puntual (ver 10.2).
 
-| Flavor | URL apuntada | Cuándo usarlo |
-|---|---|---|
-| `emulator` | `http://10.0.2.2:8000` | Solo desde AVD de Android Studio contra `php artisan serve`. |
-| `lan` | `BSLOTTERY_LAN_SERVER_URL` de `gradle.properties` (default `http://192.168.1.100:8000`) | Cajero en la misma red WiFi que la PC con XAMPP. |
-| `production` | `BSLOTTERY_PRODUCTION_SERVER_URL` o el default `https://bslottery.bsolutions.dev` | **VPS público — usar este para producción.** |
-
-### 10.1 Compilar el APK production
+### 10.1 Compilar el APK
 
 Desde PowerShell en el repo:
 
@@ -517,23 +514,38 @@ cd C:\xampp\php\www\BSLotery\android
 .\build-production-release.ps1
 ```
 
-Esto ejecuta `gradlew assembleProductionRelease` y deja el APK en
-`android/app/build/outputs/apk/production/release/`.
+Esto ejecuta `gradlew assembleRelease` y deja el APK en
+`android/app/build/outputs/apk/release/app-release.apk`.
 
-> **CRÍTICO:** NO uses `gradlew assembleRelease` o `assembleLanRelease` para
-> apuntar al VPS. Esos flavors embeben una IP LAN en el binario y el cajero
-> verá errores tipo `failed to connect to /192.168.x.x` cuando esté fuera de
-> esa red. Siempre `assembleProductionRelease` para distribución externa.
+Para un APK debug (sin firmar, instalable rápido para pruebas):
 
-### 10.2 Override personalizado de URL en build
+```powershell
+.\build-production-release.ps1 -Variant debug
+```
 
-Si necesitas una URL diferente al default para producción (ej. staging):
+Output: `android/app/build/outputs/apk/debug/app-debug.apk`.
 
-1. Edita `android/gradle.properties` y agrega:
+> El APK incluye `https://bslottery.bsolutions.dev` hardcoded en su
+> `BuildConfig.SERVER_URL`. La app intenta TLS contra ese dominio sin
+> cleartext fallback. Si el VPS no está disponible, la app muestra
+> "No se puede conectar al servidor".
+
+### 10.2 Override puntual a otro backend (staging/QA)
+
+Si necesitas compilar contra otra URL (ej. staging) sin tocar `build.gradle.kts`:
+
+1. Edita `android/gradle.properties` y agrega/descomenta:
    ```
-   BSLOTTERY_PRODUCTION_SERVER_URL=https://staging.tu-dominio.com
+   BSLOTTERY_SERVER_URL=https://staging.tu-dominio.com
    ```
-2. Compila: `.\build-production-release.ps1`
+   (Debe ser HTTPS — Gradle aborta el build si pones HTTP.)
+2. Compila: `.\build-production-release.ps1`.
+3. Después de testing, comenta la línea para volver a apuntar al VPS de prod.
+
+Alternativa para soporte/QA sin recompilar: el admin puede entrar a la app y
+desde **Configuración → Servidor** sobrescribir la URL temporalmente
+(persiste en el DataStore del dispositivo). Botón **Restablecer** vuelve al
+default del APK.
 
 ### 10.3 Instalar y configurar la app
 
@@ -565,19 +577,20 @@ El admin puede cambiar la URL **desde dentro de la app** sin recompilar:
 
 #### "failed to connect to /192.168.x.x (port 8000)"
 
-Causas comunes:
+Significa que hay un override de URL viejo (LAN) en el `SessionStore` del
+dispositivo. Soluciones (en orden):
 
-1. **El APK se compiló con flavor `lan` o `emulator`.** Recompila con
-   `.\build-production-release.ps1` y reinstala.
-2. **Hay un override viejo en el SessionStore.** Soluciones (en orden):
-   - **Configuración → Servidor → Restablecer** (más rápido si el cajero
-     puede entrar).
-   - Si no puede entrar al login: Settings de Android → Apps → BSLottery →
-     **Borrar datos**. Esto limpia el DataStore y la app arrancará con el
-     default del APK.
-   - Última opción: desinstalar y reinstalar el APK.
-3. **El dispositivo no tiene internet o el VPS está caído.** Verifica
-   abriendo `https://bslottery.bsolutions.dev` en el navegador del teléfono.
+1. **Configuración → Servidor → Restablecer** (más rápido si el cajero
+   puede entrar a la app).
+2. Si no puede entrar al login: Settings de Android → Apps → BSLottery →
+   **Borrar datos**. Esto limpia el DataStore y la app arrancará con el
+   default del APK (`https://bslottery.bsolutions.dev`).
+3. Si nada de lo anterior funciona: desinstala completamente (`adb uninstall
+   dev.bsolutions.bsloteria.debug`) e instala el APK fresh.
+
+Si el package instalado tiene sufijo `.emulator` o `.lan` (ej.
+`dev.bsolutions.bsloteria.emulator.debug`), es un APK viejo de antes de la
+limpieza de flavors. Desinstálalo y compila con `.\build-production-release.ps1`.
 
 #### "Dispositivo PENDING — autorízalo en el panel web"
 

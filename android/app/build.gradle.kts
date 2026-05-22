@@ -31,63 +31,19 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Default = produccion (https://bslottery.bsolutions.dev). Los flavors lo sobreescriben.
-        buildConfigField("String", "SERVER_URL", "https://bslottery.bsolutions.dev".asBuildConfigString())
-        buildConfigField("String", "API_BASE_URL", "\"https://bslottery.bsolutions.dev/api/\"")
-
-        // Presets que el usuario puede alternar en LoginScreen / Settings sin reinstalar.
-        // EMULATOR_URL es fijo (alias del host visto desde AVD). LAN_URL viene de
-        // gradle.properties (BSLOTTERY_LAN_SERVER_URL) para que cada PC use su IP local.
-        buildConfigField("String", "EMULATOR_URL", "http://10.0.2.2:8000".asBuildConfigString())
-        val lanPresetUrl = providers.gradleProperty("BSLOTTERY_LAN_SERVER_URL")
-            .orElse("http://192.168.1.100:8000")
+        // URL del backend. Default = produccion VPS. Override opcional via
+        // gradle.properties (BSLOTTERY_SERVER_URL) para staging/QA. DEBE ser HTTPS.
+        val serverUrl = providers.gradleProperty("BSLOTTERY_SERVER_URL")
+            .orElse("https://bslottery.bsolutions.dev")
             .get()
             .trimEnd('/')
-        buildConfigField("String", "LAN_URL", lanPresetUrl.asBuildConfigString())
-    }
 
-    flavorDimensions += "environment"
-
-    productFlavors {
-        create("emulator") {
-            dimension = "environment"
-            applicationIdSuffix = ".emulator"
-            versionNameSuffix = "-emulator"
-
-            val serverUrl = "http://10.0.2.2:8000"
-            buildConfigField("String", "SERVER_URL", serverUrl.asBuildConfigString())
-            buildConfigField("String", "API_BASE_URL", "${serverUrl.trimEnd('/')}/api/".asBuildConfigString())
+        require(serverUrl.startsWith("https://")) {
+            "BSLOTTERY_SERVER_URL debe usar HTTPS. Recibido: $serverUrl"
         }
 
-        create("lan") {
-            dimension = "environment"
-            applicationIdSuffix = ".lan"
-            versionNameSuffix = "-lan"
-
-            val serverUrl = providers.gradleProperty("BSLOTTERY_LAN_SERVER_URL")
-                .orElse("http://192.168.1.100:8000")
-                .get()
-                .trimEnd('/')
-
-            buildConfigField("String", "SERVER_URL", serverUrl.asBuildConfigString())
-            buildConfigField("String", "API_BASE_URL", "$serverUrl/api/".asBuildConfigString())
-        }
-
-        create("production") {
-            dimension = "environment"
-
-            val serverUrl = providers.gradleProperty("BSLOTTERY_PRODUCTION_SERVER_URL")
-                .orElse("https://bslottery.bsolutions.dev")
-                .get()
-                .trimEnd('/')
-
-            require(serverUrl.startsWith("https://")) {
-                "BSLOTTERY_PRODUCTION_SERVER_URL debe usar HTTPS para production."
-            }
-
-            buildConfigField("String", "SERVER_URL", serverUrl.asBuildConfigString())
-            buildConfigField("String", "API_BASE_URL", "$serverUrl/api/".asBuildConfigString())
-        }
+        buildConfigField("String", "SERVER_URL", serverUrl.asBuildConfigString())
+        buildConfigField("String", "API_BASE_URL", "$serverUrl/api/".asBuildConfigString())
     }
 
     signingConfigs {
