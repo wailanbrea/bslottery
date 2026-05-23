@@ -86,6 +86,11 @@ class DrawGenerationService
      */
     private function generateForCompanyDate(int $companyId, string $drawDate, array &$stats): void
     {
+        $company = Company::query()->select(['id', 'timezone'])->find($companyId);
+        $tz = (string) ($company?->timezone ?: 'America/Santo_Domingo');
+        $nowInTz = Carbon::now($tz);
+        $isToday = $nowInTz->toDateString() === $drawDate;
+
         $lotteries = Lottery::query()
             ->where('company_id', $companyId)
             ->where('status', 'ACTIVE')
@@ -112,6 +117,9 @@ class DrawGenerationService
                 continue;
             }
 
+            // Si el sorteo es hoy y la hora de cierre ya pasó, crearlo cerrado.
+            $alreadyClosed = $isToday && $nowInTz->format('H:i') > $item['time'];
+
             Draw::create([
                 'company_id' => $companyId,
                 'lottery_id' => $lottery->id,
@@ -120,7 +128,8 @@ class DrawGenerationService
                 'scheduled_time' => $item['time'],
                 'name' => $item['draw'],
                 'close_time' => $item['time'],
-                'status' => 'OPEN',
+                'status' => $alreadyClosed ? 'CLOSED' : 'OPEN',
+                'closed_at' => $alreadyClosed ? now() : null,
             ]);
 
             $stats['draws_created']++;

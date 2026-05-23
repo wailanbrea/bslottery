@@ -154,9 +154,21 @@ class MobileController extends Controller
         $user = $request->user();
         $this->drawGenerationService->generateForCompany((int) $user->company_id, days: 2);
 
+        $nowTime = now()->format('H:i:s');
+        $today = now()->toDateString();
+
         $draws = Draw::where('company_id', $user->company_id)
             ->where('status', 'OPEN')
-            ->whereDate('draw_date', '>=', now()->toDateString())
+            ->whereDate('draw_date', '>=', $today)
+            ->where(function ($q) use ($today, $nowTime): void {
+                // Sorteos de hoy: solo los que aún no han cerrado
+                $q->where(function ($q2) use ($today, $nowTime): void {
+                    $q2->whereDate('draw_date', $today)
+                        ->where('close_time', '>', $nowTime);
+                })
+                // Sorteos de días futuros: todos
+                ->orWhereDate('draw_date', '>', $today);
+            })
             ->with('lottery')
             ->orderBy('draw_date')
             ->orderBy('scheduled_time')
