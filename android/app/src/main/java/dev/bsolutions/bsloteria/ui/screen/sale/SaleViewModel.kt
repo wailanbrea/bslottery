@@ -19,6 +19,9 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 data class JugadaItem(
@@ -129,12 +132,24 @@ class SaleViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            ticketRepository.observeOpenDraws().collect { draws ->
-                _state.update { s ->
-                    val validSelected = s.selectedDrawIds.filter { id -> draws.any { it.id == id } }.toSet()
-                    s.copy(draws = draws, selectedDrawIds = validSelected)
+            // Re-observa la query cuando cambia el minuto local. El DAO filtra por
+            // drawDate = hoy y cutoffTime > ahora, asi las loterias del dia siguiente
+            // (sync trae hoy+manana) NO se ven duplicadas, y una loteria desaparece
+            // sola al pasar su hora de cierre sin esperar un sync nuevo.
+            _tick
+                .map { it / 60_000L }
+                .distinctUntilChanged()
+                .flatMapLatest {
+                    val today = LocalDate.now().toString()
+                    val nowTime = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
+                    ticketRepository.observeOpenDraws(today, nowTime)
                 }
-            }
+                .collect { draws ->
+                    _state.update { s ->
+                        val validSelected = s.selectedDrawIds.filter { id -> draws.any { it.id == id } }.toSet()
+                        s.copy(draws = draws, selectedDrawIds = validSelected)
+                    }
+                }
         }
         viewModelScope.launch {
             betTypeDao.observeAll().collect { types ->

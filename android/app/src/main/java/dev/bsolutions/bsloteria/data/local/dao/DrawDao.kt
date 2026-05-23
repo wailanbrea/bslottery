@@ -6,8 +6,14 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface DrawDao {
-    @Query("SELECT * FROM draws WHERE status = 'OPEN' ORDER BY drawTime ASC")
-    fun observeOpenDraws(): Flow<List<DrawEntity>>
+    @Query("""
+        SELECT * FROM draws
+        WHERE status = 'OPEN'
+          AND drawDate = :today
+          AND (cutoffTime IS NULL OR cutoffTime > :nowTime)
+        ORDER BY drawTime ASC
+    """)
+    fun observeOpenDraws(today: String, nowTime: String): Flow<List<DrawEntity>>
 
     @Query("SELECT * FROM draws WHERE id = :id")
     suspend fun findById(id: Long): DrawEntity?

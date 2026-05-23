@@ -42,7 +42,8 @@ class TicketRepository @Inject constructor(
 
     fun observeRecentTickets() = ticketDao.observeRecent()
     fun observePendingCount(): Flow<Int> = ticketDao.observePendingCount()
-    fun observeOpenDraws(): Flow<List<DrawEntity>> = drawDao.observeOpenDraws()
+    fun observeOpenDraws(today: String, nowTime: String): Flow<List<DrawEntity>> =
+        drawDao.observeOpenDraws(today, nowTime)
 
     /**
      * Consulta disponibilidad de limite para un numero antes de agregar la jugada.
