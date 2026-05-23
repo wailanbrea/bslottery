@@ -9,6 +9,8 @@ use App\Models\CashSession;
 use App\Models\Device;
 use App\Models\Draw;
 use App\Models\LicenseState;
+use App\Models\LimitConsumption;
+use App\Models\LimitRule;
 use App\Models\Lottery;
 use App\Models\PayoutRule;
 use App\Models\PrintJob;
@@ -17,6 +19,7 @@ use App\Models\Ticket;
 use App\Models\TicketDetail;
 use App\Models\User;
 use App\Models\WinnerTicket;
+use App\Services\Cash\CashService;
 use Database\Seeders\AccountingAccountSeeder;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
@@ -28,10 +31,15 @@ class MobileSaleApiTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private Branch $branch;
+
     private Draw $draw;
+
     private BetType $betType;
+
     private BetType $superPale;
+
     private string $deviceUuid = '11111111-1111-4111-8111-111111111111';
 
     protected function setUp(): void
@@ -218,6 +226,44 @@ class MobileSaleApiTest extends TestCase
             ->assertJsonFragment(['code' => 'SUPER_PALE']);
     }
 
+    public function test_mobile_sync_generates_missing_today_draws_for_catalog_lotteries(): void
+    {
+        $token = $this->mobileLogin();
+        Device::query()->where('uuid', $this->deviceUuid)->firstOrFail()->forceFill([
+            'status' => 'AUTHORIZED',
+            'authorized_by' => $this->admin->id,
+            'authorized_at' => now(),
+        ])->save();
+
+        Draw::query()->delete();
+        Lottery::query()->create([
+            'company_id' => $this->branch->company_id,
+            'name' => 'Loteria Nacional',
+            'code' => 'LOTNAC',
+            'country' => 'DO',
+            'status' => 'ACTIVE',
+        ]);
+
+        $this->assertSame(0, Draw::query()->whereDate('draw_date', now()->toDateString())->count());
+
+        $this->withHeaders([
+            'Authorization' => "Bearer {$token}",
+            'X-Requested-With' => 'BSLoteria-Android',
+            'X-Device-UUID' => $this->deviceUuid,
+        ])->getJson('/api/mobile/sync/data')
+            ->assertOk()
+            ->assertJsonFragment(['lottery_name' => 'Loteria Nacional']);
+
+        $this->assertTrue(
+            Draw::query()
+                ->where('company_id', $this->branch->company_id)
+                ->whereDate('draw_date', now()->toDateString())
+                ->where('scheduled_time', '21:00')
+                ->where('status', 'OPEN')
+                ->exists()
+        );
+    }
+
     public function test_mobile_can_lookup_ticket_by_number_or_qr_token(): void
     {
         $token = $this->mobileLogin();
@@ -387,7 +433,7 @@ class MobileSaleApiTest extends TestCase
         ]);
 
         // Movimientos realizados desde el sistema (venta + entrada)
-        $cashService = app(\App\Services\Cash\CashService::class);
+        $cashService = app(CashService::class);
         $cashService->recordMovement($session, $this->admin, 'SALE', '1200.00', 'IN', 'Venta desde sistema');
         $cashService->recordMovement($session, $this->admin, 'CASH_IN', '500.00', 'IN', 'Refuerzo desde sistema');
 
@@ -462,42 +508,42 @@ class MobileSaleApiTest extends TestCase
             'authorized_at' => now(),
         ])->save();
 
-        \App\Models\LimitRule::query()->create([
-            'company_id'            => $this->branch->company_id,
-            'branch_id'             => $this->branch->id,
-            'lottery_id'            => $this->draw->lottery_id,
-            'draw_id'               => $this->draw->id,
-            'bet_type_id'           => $this->betType->id,
-            'rule_type'             => 'SINGLE_NUMBER',
-            'number_value'          => '34',
+        LimitRule::query()->create([
+            'company_id' => $this->branch->company_id,
+            'branch_id' => $this->branch->id,
+            'lottery_id' => $this->draw->lottery_id,
+            'draw_id' => $this->draw->id,
+            'bet_type_id' => $this->betType->id,
+            'rule_type' => 'SINGLE_NUMBER',
+            'number_value' => '34',
             'max_amount_per_number' => '3000.00',
-            'policy'                => 'BLOCK_FULL',
-            'effective_from'        => now()->subDay(),
-            'status'                => 'ACTIVE',
-            'created_by'            => $this->admin->id,
+            'policy' => 'BLOCK_FULL',
+            'effective_from' => now()->subDay(),
+            'status' => 'ACTIVE',
+            'created_by' => $this->admin->id,
         ]);
 
-        \App\Models\LimitConsumption::query()->create([
-            'company_id'  => $this->branch->company_id,
-            'branch_id'   => $this->branch->id,
-            'lottery_id'  => $this->draw->lottery_id,
-            'draw_id'     => $this->draw->id,
+        LimitConsumption::query()->create([
+            'company_id' => $this->branch->company_id,
+            'branch_id' => $this->branch->id,
+            'lottery_id' => $this->draw->lottery_id,
+            'draw_id' => $this->draw->id,
             'bet_type_id' => $this->betType->id,
             'number_value' => '34',
             'sold_amount' => '2800.00',
         ]);
 
         $this->withHeaders([
-            'Authorization'    => "Bearer {$token}",
+            'Authorization' => "Bearer {$token}",
             'X-Requested-With' => 'BSLoteria-Android',
-            'X-Device-UUID'    => $this->deviceUuid,
+            'X-Device-UUID' => $this->deviceUuid,
         ])->getJson('/api/mobile/tickets/check-limit?'.http_build_query([
-            'draw_id'      => $this->draw->id,
-            'bet_type_id'  => $this->betType->id,
+            'draw_id' => $this->draw->id,
+            'bet_type_id' => $this->betType->id,
             'number_value' => '34',
         ]))->assertOk()->assertJson([
             'available' => 200.0,
-            'blocked'   => false,
+            'blocked' => false,
         ]);
     }
 
@@ -510,42 +556,42 @@ class MobileSaleApiTest extends TestCase
             'authorized_at' => now(),
         ])->save();
 
-        \App\Models\LimitRule::query()->create([
-            'company_id'            => $this->branch->company_id,
-            'branch_id'             => $this->branch->id,
-            'lottery_id'            => $this->draw->lottery_id,
-            'draw_id'               => $this->draw->id,
-            'bet_type_id'           => $this->betType->id,
-            'rule_type'             => 'SINGLE_NUMBER',
-            'number_value'          => '34',
+        LimitRule::query()->create([
+            'company_id' => $this->branch->company_id,
+            'branch_id' => $this->branch->id,
+            'lottery_id' => $this->draw->lottery_id,
+            'draw_id' => $this->draw->id,
+            'bet_type_id' => $this->betType->id,
+            'rule_type' => 'SINGLE_NUMBER',
+            'number_value' => '34',
             'max_amount_per_number' => '500.00',
-            'policy'                => 'BLOCK_FULL',
-            'effective_from'        => now()->subDay(),
-            'status'                => 'ACTIVE',
-            'created_by'            => $this->admin->id,
+            'policy' => 'BLOCK_FULL',
+            'effective_from' => now()->subDay(),
+            'status' => 'ACTIVE',
+            'created_by' => $this->admin->id,
         ]);
 
-        \App\Models\LimitConsumption::query()->create([
-            'company_id'  => $this->branch->company_id,
-            'branch_id'   => $this->branch->id,
-            'lottery_id'  => $this->draw->lottery_id,
-            'draw_id'     => $this->draw->id,
+        LimitConsumption::query()->create([
+            'company_id' => $this->branch->company_id,
+            'branch_id' => $this->branch->id,
+            'lottery_id' => $this->draw->lottery_id,
+            'draw_id' => $this->draw->id,
             'bet_type_id' => $this->betType->id,
             'number_value' => '34',
             'sold_amount' => '500.00',
         ]);
 
         $this->withHeaders([
-            'Authorization'    => "Bearer {$token}",
+            'Authorization' => "Bearer {$token}",
             'X-Requested-With' => 'BSLoteria-Android',
-            'X-Device-UUID'    => $this->deviceUuid,
+            'X-Device-UUID' => $this->deviceUuid,
         ])->getJson('/api/mobile/tickets/check-limit?'.http_build_query([
-            'draw_id'      => $this->draw->id,
-            'bet_type_id'  => $this->betType->id,
+            'draw_id' => $this->draw->id,
+            'bet_type_id' => $this->betType->id,
             'number_value' => '34',
         ]))->assertOk()->assertJson([
             'available' => 0,
-            'blocked'   => true,
+            'blocked' => true,
         ]);
     }
 
@@ -559,16 +605,16 @@ class MobileSaleApiTest extends TestCase
         ])->save();
 
         $this->withHeaders([
-            'Authorization'    => "Bearer {$token}",
+            'Authorization' => "Bearer {$token}",
             'X-Requested-With' => 'BSLoteria-Android',
-            'X-Device-UUID'    => $this->deviceUuid,
+            'X-Device-UUID' => $this->deviceUuid,
         ])->getJson('/api/mobile/tickets/check-limit?'.http_build_query([
-            'draw_id'      => $this->draw->id,
-            'bet_type_id'  => $this->betType->id,
+            'draw_id' => $this->draw->id,
+            'bet_type_id' => $this->betType->id,
             'number_value' => '88',
         ]))->assertOk()->assertJson([
             'available' => null,
-            'blocked'   => false,
+            'blocked' => false,
         ]);
     }
 

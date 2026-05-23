@@ -42,15 +42,43 @@ class DrawGenerationService
                 foreach ($companies as $company) {
                     $stats['companies_processed']++;
                     $baseDate = $this->resolveBaseDate($forDate, (string) ($company->timezone ?: 'America/Santo_Domingo'));
-
-                    for ($offset = 0; $offset < $days; $offset++) {
-                        $targetDate = $baseDate->copy()->addDays($offset)->toDateString();
-                        $this->generateForCompanyDate((int) $company->id, $targetDate, $stats);
-                    }
+                    $this->generateForCompany((int) $company->id, $baseDate->toDateString(), $days, $stats);
                 }
             });
 
         return $stats;
+    }
+
+    /**
+     * Genera sorteos faltantes para una empresa especifica. Es idempotente y
+     * esta pensado para pantallas operativas cuando el scheduler no corrio.
+     *
+     * @param  array{companies_processed: int, draws_created: int, draws_skipped: int, days_covered: int}|null  $stats
+     * @return array{companies_processed: int, draws_created: int, draws_skipped: int, days_covered: int}
+     */
+    public function generateForCompany(int $companyId, ?string $forDate = null, int $days = 1, ?array &$stats = null): array
+    {
+        $days = max(1, $days);
+        $localStats = $stats ?? [
+            'companies_processed' => 1,
+            'draws_created' => 0,
+            'draws_skipped' => 0,
+            'days_covered' => $days,
+        ];
+
+        $company = Company::query()->select(['id', 'timezone'])->findOrFail($companyId);
+        $baseDate = $this->resolveBaseDate($forDate, (string) ($company->timezone ?: 'America/Santo_Domingo'));
+
+        for ($offset = 0; $offset < $days; $offset++) {
+            $targetDate = $baseDate->copy()->addDays($offset)->toDateString();
+            $this->generateForCompanyDate($companyId, $targetDate, $localStats);
+        }
+
+        if ($stats !== null) {
+            $stats = $localStats;
+        }
+
+        return $localStats;
     }
 
     /**

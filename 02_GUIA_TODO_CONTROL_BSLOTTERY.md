@@ -6473,6 +6473,63 @@ Proximo paso recomendado:
 
 ---
 
+## 2026-05-21 - Disponibilidad diaria de sorteos abiertos
+
+Responsable:
+- Codex
+
+Fase trabajada:
+- Fase 3/6: nucleo operativo de venta web y sincronizacion movil.
+
+Puntos completados:
+- [x] Se diagnostico por que el POS no mostraba loterias abiertas: no existian sorteos para `2026-05-21`; la base saltaba de `2026-05-19` a `2026-05-25`.
+- [x] Se genero en la base local el calendario de sorteos para `2026-05-21` y `2026-05-22`.
+- [x] `DrawGenerationService` ahora expone generacion idempotente por empresa para pantallas/API operativas.
+- [x] La pantalla POS genera sorteos faltantes de hoy/manana antes de consultar sorteos.
+- [x] La sincronizacion movil y el bootstrap offline generan sorteos faltantes antes de devolver catalogo.
+- [x] La validacion de venta ya no compara solo la hora; ahora valida contra fecha+hora del sorteo.
+- [x] Se agregaron pruebas para evitar que vuelva el fallo de catalogo diario faltante y el bug de sorteo futuro tratado como cerrado.
+
+Sorteos abiertos confirmados en la base local al cierre de esta correccion:
+- Florida Noche: cierre 21:50.
+- PowerBall: cierre 22:59.
+- Mega Millions: cierre 23:00.
+- New York 11:30: cierre 23:30.
+
+Archivos creados/modificados:
+- `app/Services/Lottery/DrawGenerationService.php`
+- `app/Http/Controllers/Admin/TicketController.php`
+- `app/Http/Controllers/Api/MobileController.php`
+- `app/Http/Controllers/Api/OfflineController.php`
+- `app/Services/Sales/TicketSaleService.php`
+- `tests/Feature/MobileSaleApiTest.php`
+- `tests/Feature/SaleAndPrizeCycleTest.php`
+- `02_GUIA_TODO_CONTROL_BSLOTTERY.md`
+
+Decisiones tomadas:
+- El scheduler sigue siendo el flujo principal (`draws:generate-daily` diario), pero POS/API movil/offline ahora hacen una generacion idempotente como red de seguridad. Esto evita que una banca quede sin venta si el scheduler no corrio en Windows/XAMPP.
+- La validacion de cierre en venta usa fecha+hora completa del sorteo. Comparar solo `now()->format('H:i')` era incorrecto porque bloqueaba sorteos futuros con hora menor que la hora actual.
+- Se generan dos dias desde las entradas operativas para cubrir hoy y manana sin crear volumen excesivo.
+
+Riesgos detectados:
+- Si el scheduler de Laravel no esta corriendo en Windows, los sorteos se generaran al entrar al POS/API, pero el cierre automatico por minuto tambien depende del scheduler. Debe configurarse `php artisan schedule:work` o tarea programada de Windows para operacion real.
+- Persisten warnings de PHPUnit por metadata `@test` en doc-comments de pruebas antiguas; no falla hoy, pero debe migrarse antes de PHPUnit 12.
+
+Validacion ejecutada:
+- `php artisan draws:generate-daily --date=2026-05-21 --days=2`: 64 sorteos creados.
+- `php -l` en archivos PHP modificados: correcto.
+- `php artisan test tests\Feature\MobileSaleApiTest.php --filter=generates_missing_today`: 1 passed, 5 assertions.
+- `php artisan test tests\Feature\SaleAndPrizeCycleTest.php --filter=future_draw`: 1 passed, 2 assertions.
+- `php artisan test tests\Feature\MobileSaleApiTest.php tests\Feature\SaleAndPrizeCycleTest.php`: 47 passed, 435 assertions.
+- `vendor\bin\pint --dirty`: fixed/correcto.
+- `php artisan route:list --except-vendor`: correcto, 200 rutas.
+- `php artisan test`: 144 passed, 894 assertions.
+
+Proximo paso recomendado:
+- Configurar el scheduler real en Windows/XAMPP para que `draws:generate-daily` y `draws:auto-close` corran sin depender de que alguien abra el POS.
+
+---
+
 # Plantilla para futuras actualizaciones
 
 Copiar esta plantilla cada vez que una IA o desarrollador avance.

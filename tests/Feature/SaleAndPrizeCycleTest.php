@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\BetType;
 use App\Models\BankTransfer;
+use App\Models\BetType;
 use App\Models\Branch;
 use App\Models\CashCountDenomination;
 use App\Models\CashIncident;
@@ -15,14 +15,22 @@ use App\Models\LicenseState;
 use App\Models\LimitRule;
 use App\Models\Lottery;
 use App\Models\PayoutRule;
+use App\Models\Permission;
 use App\Models\PrinterConfig;
 use App\Models\PrintJob;
+use App\Models\Result;
 use App\Models\Role;
+use App\Models\SystemSetting;
+use App\Models\Ticket;
 use App\Models\User;
+use App\Models\WinnerTicket;
+use App\Services\Cash\CashService;
+use App\Services\Sales\TicketSaleService;
 use Database\Seeders\AccountingAccountSeeder;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -31,9 +39,13 @@ class SaleAndPrizeCycleTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private Branch $branch;
+
     private Lottery $lottery;
+
     private Draw $draw;
+
     private BetType $betType;
 
     protected function setUp(): void
@@ -158,6 +170,53 @@ class SaleAndPrizeCycleTest extends TestCase
     }
 
     /** @test */
+    public function future_draw_with_earlier_close_clock_is_not_treated_as_already_closed(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-05-21 21:30:00', config('app.timezone')));
+
+        try {
+            $futureDraw = Draw::create([
+                'company_id' => $this->branch->company_id,
+                'lottery_id' => $this->lottery->id,
+                'name' => 'Sorteo futuro 6:00 PM',
+                'draw_date' => now()->addDay()->toDateString(),
+                'open_time' => '08:00',
+                'scheduled_time' => '18:00',
+                'close_time' => '18:00',
+                'status' => 'OPEN',
+            ]);
+
+            $session = CashSession::create([
+                'company_id' => $this->branch->company_id,
+                'branch_id' => $this->branch->id,
+                'user_id' => $this->admin->id,
+                'opened_by' => $this->admin->id,
+                'opening_amount' => '5000.00',
+                'expected_cash' => '5000.00',
+                'status' => 'OPEN',
+                'opened_at' => now(),
+            ]);
+
+            $this->expectException(\RuntimeException::class);
+            $this->expectExceptionMessage('El sorteo todavia no esta abierto.');
+
+            app(TicketSaleService::class)->sell(
+                branch: $this->branch,
+                draw: $futureDraw,
+                user: $this->admin,
+                plays: [[
+                    'bet_type_id' => $this->betType->id,
+                    'number_value' => '25',
+                    'amount' => '10.00',
+                ]],
+                cashSession: $session,
+            );
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    /** @test */
     public function cash_close_form_authorizes_without_policy_argument_error(): void
     {
         $this->openCash();
@@ -216,14 +275,14 @@ class SaleAndPrizeCycleTest extends TestCase
             'must_change_password' => false,
         ]);
 
-        $cashService = app(\App\Services\Cash\CashService::class);
+        $cashService = app(CashService::class);
         $session = $cashService->open($this->branch, $cashier, '5000.00');
         $this->assertEquals($cashier->id, $session->user_id);
 
         // Admin cierra la sesion del cajero con faltante de 500.
         $cashService->close($session, $this->admin, '4500.00', 'Cierre administrativo.', []);
 
-        $incident = \App\Models\CashIncident::where('type', 'CASH_SHORTAGE')
+        $incident = CashIncident::where('type', 'CASH_SHORTAGE')
             ->where('cash_session_id', $session->id)
             ->firstOrFail();
 
@@ -286,7 +345,7 @@ class SaleAndPrizeCycleTest extends TestCase
 
         $session = CashSession::where('branch_id', $this->branch->id)->where('status', 'OPEN')->firstOrFail();
 
-        app(\App\Services\Cash\CashService::class)->recordMovement(
+        app(CashService::class)->recordMovement(
             session: $session,
             user: $this->admin,
             type: 'SALE',
@@ -490,11 +549,11 @@ class SaleAndPrizeCycleTest extends TestCase
             'third_number' => '56',
         ])->assertRedirect();
 
-        $result = \App\Models\Result::where('draw_id', $this->draw->id)->first();
+        $result = Result::where('draw_id', $this->draw->id)->first();
         $this->confirmResultAsSecondAdmin($result);
     }
 
-    private function confirmResultAsSecondAdmin(\App\Models\Result $result): void
+    private function confirmResultAsSecondAdmin(Result $result): void
     {
         $confirmer = User::firstOrCreate(
             ['email' => 'confirmador@example.com'],
@@ -626,7 +685,7 @@ class SaleAndPrizeCycleTest extends TestCase
         $this->assertEquals('RESULT_REGISTERED', $this->draw->status);
 
         // 5. Confirmar resultado (admin registró y confirma — tiene permiso modify_confirmed implícito como COMPANY_OWNER con todos los permisos)
-        $result = \App\Models\Result::where('draw_id', $this->draw->id)->first();
+        $result = Result::where('draw_id', $this->draw->id)->first();
         $this->confirmResultAsSecondAdmin($result);
 
         $result->refresh();
@@ -694,7 +753,7 @@ class SaleAndPrizeCycleTest extends TestCase
         ]);
 
         // 8. Pagar premio
-        $winner = \App\Models\WinnerTicket::where('draw_id', $this->draw->id)->first();
+        $winner = WinnerTicket::where('draw_id', $this->draw->id)->first();
         $this->post(route('admin.prizes.pay', $winner))
             ->assertRedirect();
 
@@ -798,7 +857,7 @@ class SaleAndPrizeCycleTest extends TestCase
             ],
         ])->assertSessionHasNoErrors();
 
-        $ticket = \App\Models\Ticket::first();
+        $ticket = Ticket::first();
 
         // Cerrar sorteo
         $this->post(route('admin.draws.close', $this->draw))->assertRedirect();
@@ -812,14 +871,14 @@ class SaleAndPrizeCycleTest extends TestCase
             'third_number' => '56',
         ])->assertRedirect();
 
-        $result = \App\Models\Result::where('draw_id', $this->draw->id)->first();
+        $result = Result::where('draw_id', $this->draw->id)->first();
         $this->confirmResultAsSecondAdmin($result);
 
         // Calcular ganadores
         $this->post(route('admin.results.calculate', $this->draw))->assertRedirect();
 
         // Verificar: 2 ganadores (34 quiniela y 34-12 pale)
-        $this->assertEquals(2, \App\Models\WinnerTicket::where('draw_id', $this->draw->id)->count());
+        $this->assertEquals(2, WinnerTicket::where('draw_id', $this->draw->id)->count());
 
         // 34: Quiniela, FIRST, 100 x 80 = 8000
         $this->assertDatabaseHas('winner_tickets', [
@@ -877,14 +936,14 @@ class SaleAndPrizeCycleTest extends TestCase
             'draw_id' => $this->draw->id,
             'first_number' => '34',
         ])->assertRedirect();
-        $result = \App\Models\Result::first();
+        $result = Result::first();
         $this->confirmResultAsSecondAdmin($result);
 
         // Calcular ganadores
         $this->post(route('admin.results.calculate', $this->draw))->assertRedirect();
 
         // Intentar pagar antes de autorizar — debe fallar
-        $winner = \App\Models\WinnerTicket::first();
+        $winner = WinnerTicket::first();
         $this->assertEquals('PENDING_RELEASE', $winner->status);
 
         $this->post(route('admin.prizes.pay', $winner))
@@ -902,8 +961,8 @@ class SaleAndPrizeCycleTest extends TestCase
     {
         $cajeroRole = Role::where('slug', 'CASHIER')->first();
         // Dar permisos de resultados al cajero para esta prueba
-        $permCreate = \App\Models\Permission::where('slug', 'results.create')->first();
-        $permConfirm = \App\Models\Permission::where('slug', 'results.confirm')->first();
+        $permCreate = Permission::where('slug', 'results.create')->first();
+        $permConfirm = Permission::where('slug', 'results.confirm')->first();
         $cajeroRole->permissions()->syncWithoutDetaching([$permCreate->id, $permConfirm->id]);
 
         $cajero = User::create([
@@ -929,7 +988,7 @@ class SaleAndPrizeCycleTest extends TestCase
             'first_number' => '34',
         ])->assertRedirect();
 
-        $result = \App\Models\Result::first();
+        $result = Result::first();
         $this->assertEquals('REGISTERED', $result->status);
 
         // El mismo cajero intenta confirmar — debe fallar
@@ -944,7 +1003,7 @@ class SaleAndPrizeCycleTest extends TestCase
     /** @test */
     public function result_can_be_auto_confirmed_when_company_setting_disables_confirmation(): void
     {
-        \App\Models\SystemSetting::setBoolean($this->branch->company_id, 'results.require_confirmation', false);
+        SystemSetting::setBoolean($this->branch->company_id, 'results.require_confirmation', false);
 
         $this->post(route('admin.draws.close', $this->draw))->assertRedirect();
 
@@ -956,7 +1015,7 @@ class SaleAndPrizeCycleTest extends TestCase
             'third_number' => '56',
         ])->assertRedirect()->assertSessionHasNoErrors();
 
-        $result = \App\Models\Result::first();
+        $result = Result::first();
 
         $this->assertEquals('CONFIRMED', $result->status);
         $this->assertEquals($this->admin->id, $result->registered_by);
@@ -986,7 +1045,7 @@ class SaleAndPrizeCycleTest extends TestCase
             ],
         ])->assertRedirect();
 
-        $ticket = \App\Models\Ticket::first();
+        $ticket = Ticket::first();
         $this->assertNotNull($ticket);
 
         // Verificar límites consumidos
@@ -1061,7 +1120,7 @@ class SaleAndPrizeCycleTest extends TestCase
             ],
         ])->assertRedirect();
 
-        $ticket = \App\Models\Ticket::first();
+        $ticket = Ticket::first();
         $this->assertNotNull($ticket);
 
         $this->post(route('admin.draws.close', $this->draw), [
@@ -1102,7 +1161,7 @@ class SaleAndPrizeCycleTest extends TestCase
             ],
         ])->assertRedirect();
 
-        $ticket = \App\Models\Ticket::first();
+        $ticket = Ticket::first();
         $this->assertNotNull($ticket);
 
         $this->post(route('admin.draws.cancel', $this->draw), [
@@ -1149,7 +1208,7 @@ class SaleAndPrizeCycleTest extends TestCase
         $this->openCash();
         $this->sellQuiniela('34', '100.00');
 
-        $ticket = \App\Models\Ticket::first();
+        $ticket = Ticket::first();
         $detail = $ticket->details()->first();
         $payoutRule = PayoutRule::first();
 
@@ -1203,7 +1262,7 @@ class SaleAndPrizeCycleTest extends TestCase
             ],
         ])->assertRedirect()->assertSessionHasNoErrors();
 
-        $ticket = \App\Models\Ticket::first();
+        $ticket = Ticket::first();
         $detail = $ticket->details()->first();
 
         $this->assertEquals($payoutRule->id, $detail->payout_rule_id);
@@ -1228,7 +1287,7 @@ class SaleAndPrizeCycleTest extends TestCase
         $this->openCash();
         $this->sellQuiniela('34', '100.00');
 
-        $ticket = \App\Models\Ticket::first();
+        $ticket = Ticket::first();
         $job = PrintJob::where('ticket_id', $ticket->id)->where('type', 'TICKET')->first();
 
         $this->assertNotNull($job);
@@ -1287,7 +1346,7 @@ class SaleAndPrizeCycleTest extends TestCase
 
         $this->assertDatabaseHas('limit_consumptions', ['number_value' => '25', 'sold_amount' => 1000.00]);
         $this->assertDatabaseHas('limit_consumptions', ['number_value' => '30', 'sold_amount' => 1000.00]);
-        $this->assertEquals(2, \App\Models\Ticket::count());
+        $this->assertEquals(2, Ticket::count());
     }
 
     /** @test */
@@ -1319,7 +1378,7 @@ class SaleAndPrizeCycleTest extends TestCase
             ],
         ])->assertRedirect()->assertSessionHasErrors();
 
-        $this->assertEquals(1, \App\Models\Ticket::count());
+        $this->assertEquals(1, Ticket::count());
         $this->assertDatabaseHas('limit_consumptions', ['number_value' => '34', 'sold_amount' => 60.00]);
     }
 
@@ -1327,32 +1386,32 @@ class SaleAndPrizeCycleTest extends TestCase
     public function check_limit_endpoint_returns_correct_available_when_near_cap(): void
     {
         LimitRule::create([
-            'company_id'             => $this->branch->company_id,
-            'branch_id'              => $this->branch->id,
-            'lottery_id'             => $this->lottery->id,
-            'draw_id'                => $this->draw->id,
-            'bet_type_id'            => $this->betType->id,
-            'rule_type'              => 'SINGLE_NUMBER',
-            'number_value'           => '34',
-            'max_amount_per_number'  => '3000.00',
-            'policy'                 => 'BLOCK_FULL',
-            'effective_from'         => now()->subDay(),
-            'status'                 => 'ACTIVE',
-            'created_by'             => $this->admin->id,
+            'company_id' => $this->branch->company_id,
+            'branch_id' => $this->branch->id,
+            'lottery_id' => $this->lottery->id,
+            'draw_id' => $this->draw->id,
+            'bet_type_id' => $this->betType->id,
+            'rule_type' => 'SINGLE_NUMBER',
+            'number_value' => '34',
+            'max_amount_per_number' => '3000.00',
+            'policy' => 'BLOCK_FULL',
+            'effective_from' => now()->subDay(),
+            'status' => 'ACTIVE',
+            'created_by' => $this->admin->id,
         ]);
 
         $this->openCash();
         $this->sellQuiniela('34', '2800.00');
 
         $response = $this->getJson(route('admin.tickets.check-limit', [
-            'draw_id'      => $this->draw->id,
-            'bet_type_id'  => $this->betType->id,
+            'draw_id' => $this->draw->id,
+            'bet_type_id' => $this->betType->id,
             'number_value' => '34',
         ]));
 
         $response->assertOk()->assertJson([
             'available' => 200.0, // 3000 - 2800
-            'blocked'   => false,
+            'blocked' => false,
         ]);
     }
 
@@ -1360,32 +1419,32 @@ class SaleAndPrizeCycleTest extends TestCase
     public function check_limit_endpoint_marks_blocked_when_fully_consumed(): void
     {
         LimitRule::create([
-            'company_id'             => $this->branch->company_id,
-            'branch_id'              => $this->branch->id,
-            'lottery_id'             => $this->lottery->id,
-            'draw_id'                => $this->draw->id,
-            'bet_type_id'            => $this->betType->id,
-            'rule_type'              => 'SINGLE_NUMBER',
-            'number_value'           => '34',
-            'max_amount_per_number'  => '500.00',
-            'policy'                 => 'BLOCK_FULL',
-            'effective_from'         => now()->subDay(),
-            'status'                 => 'ACTIVE',
-            'created_by'             => $this->admin->id,
+            'company_id' => $this->branch->company_id,
+            'branch_id' => $this->branch->id,
+            'lottery_id' => $this->lottery->id,
+            'draw_id' => $this->draw->id,
+            'bet_type_id' => $this->betType->id,
+            'rule_type' => 'SINGLE_NUMBER',
+            'number_value' => '34',
+            'max_amount_per_number' => '500.00',
+            'policy' => 'BLOCK_FULL',
+            'effective_from' => now()->subDay(),
+            'status' => 'ACTIVE',
+            'created_by' => $this->admin->id,
         ]);
 
         $this->openCash();
         $this->sellQuiniela('34', '500.00');
 
         $response = $this->getJson(route('admin.tickets.check-limit', [
-            'draw_id'      => $this->draw->id,
-            'bet_type_id'  => $this->betType->id,
+            'draw_id' => $this->draw->id,
+            'bet_type_id' => $this->betType->id,
             'number_value' => '34',
         ]));
 
         $response->assertOk()->assertJson([
             'available' => 0,
-            'blocked'   => true,
+            'blocked' => true,
         ]);
     }
 
@@ -1395,14 +1454,14 @@ class SaleAndPrizeCycleTest extends TestCase
         $this->openCash();
 
         $response = $this->getJson(route('admin.tickets.check-limit', [
-            'draw_id'      => $this->draw->id,
-            'bet_type_id'  => $this->betType->id,
+            'draw_id' => $this->draw->id,
+            'bet_type_id' => $this->betType->id,
             'number_value' => '88',
         ]));
 
         $response->assertOk()->assertJson([
             'available' => null,
-            'blocked'   => false,
+            'blocked' => false,
         ]);
     }
 
@@ -1436,7 +1495,7 @@ class SaleAndPrizeCycleTest extends TestCase
 
         CashSession::where('branch_id', $this->branch->id)->update(['status' => 'CLOSED']);
 
-        $winner = \App\Models\WinnerTicket::first();
+        $winner = WinnerTicket::first();
         $this->post(route('admin.prizes.pay', $winner))
             ->assertRedirect()
             ->assertSessionHasErrors();
@@ -1455,7 +1514,7 @@ class SaleAndPrizeCycleTest extends TestCase
         $this->post(route('admin.results.calculate', $this->draw))->assertRedirect();
         $this->post(route('admin.results.authorize', $this->draw))->assertRedirect();
 
-        $ticket = \App\Models\Ticket::firstOrFail();
+        $ticket = Ticket::firstOrFail();
 
         $this->getJson(route('admin.tickets.lookup', ['token' => $ticket->ticket_number]))
             ->assertOk()
@@ -1469,7 +1528,7 @@ class SaleAndPrizeCycleTest extends TestCase
         $this->assertDatabaseCount('prize_payments', 0);
 
         $session = CashSession::where('branch_id', $this->branch->id)->where('status', 'OPEN')->firstOrFail();
-        app(\App\Services\Cash\CashService::class)->recordCashIn(
+        app(CashService::class)->recordCashIn(
             session: $session,
             user: $this->admin,
             amount: '8000.00',
@@ -1513,7 +1572,7 @@ class SaleAndPrizeCycleTest extends TestCase
         $this->registerConfirmedWinningResult();
         $this->post(route('admin.results.calculate', $this->draw))->assertRedirect();
 
-        $winner = \App\Models\WinnerTicket::first();
+        $winner = WinnerTicket::first();
         $this->assertEquals('HELD', $winner->status);
 
         $this->post(route('admin.results.authorize', $this->draw))->assertRedirect();

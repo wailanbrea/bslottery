@@ -89,7 +89,6 @@ data class SaleUiState(
     val numberInput: String = "",
     val amountInput: String = "",
     val selectedBetTypeId: Long? = null,
-    val nowMillis: Long = System.currentTimeMillis(),
     val isLoading: Boolean = false,
     val successUuid: String? = null,
     val error: String? = null,
@@ -114,6 +113,14 @@ class SaleViewModel @Inject constructor(
     private val _state = MutableStateFlow(SaleUiState())
     val state: StateFlow<SaleUiState> = _state
 
+    /**
+     * Reloj separado del state principal. Solo el carrusel de sorteos observa esto
+     * para recalcular countdowns sin disparar recomposiciones del resto de la UI
+     * (footer, jugadas, dialogs) cada segundo.
+     */
+    private val _tick = MutableStateFlow(System.currentTimeMillis())
+    val tick: StateFlow<Long> = _tick
+
     val session = sessionStore.sessionFlow.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private var lastSoldJugadas: List<JugadaItem> = emptyList()
@@ -137,7 +144,7 @@ class SaleViewModel @Inject constructor(
         viewModelScope.launch {
             while (true) {
                 delay(1000L)
-                _state.update { it.copy(nowMillis = System.currentTimeMillis()) }
+                _tick.value = System.currentTimeMillis()
             }
         }
     }
@@ -426,7 +433,10 @@ class SaleViewModel @Inject constructor(
                 amountInput = "",
                 isMontoActive = false,
                 voltearActivo = false,
-                error = null
+                error = null,
+                // Dialogs sin sentido sin jugadas: cerrarlos defensivamente.
+                combinarDialog = CombinarDialogState(),
+                limitDialog = LimitDialogState(),
             )
         }
     }
@@ -695,7 +705,11 @@ class SaleViewModel @Inject constructor(
                 it.copy(
                     isLoading = false,
                     successUuid = if (!hasError) lastUuid else null,
-                    jugadas = if (!hasError) emptyList() else it.jugadas
+                    jugadas = if (!hasError) emptyList() else it.jugadas,
+                    // Cerrar dialogs cuando la venta fue exitosa (no quedan
+                    // jugadas, los dialogs no tienen sentido).
+                    combinarDialog = if (!hasError) CombinarDialogState() else it.combinarDialog,
+                    limitDialog = if (!hasError) LimitDialogState() else it.limitDialog,
                 )
             }
 

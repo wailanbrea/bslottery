@@ -30,7 +30,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.bsolutions.bsloteria.data.local.entity.DrawEntity
+import kotlinx.coroutines.flow.StateFlow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,13 +40,18 @@ fun SaleScreen(
     viewModel: SaleViewModel,
     onBack: () -> Unit
 ) {
-    val state by viewModel.state.collectAsState()
-    val session by viewModel.session.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val session by viewModel.session.collectAsStateWithLifecycle()
     val primary = MaterialTheme.colorScheme.primary
     var showSuccessDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.successUuid) {
         if (state.successUuid != null) showSuccessDialog = true
+    }
+
+    // derivedStateOf evita recalcular en cada recomposicion si jugadas no cambio.
+    val totalAmount by remember(state.jugadas) {
+        derivedStateOf { viewModel.totalAmount() }
     }
 
     Scaffold(
@@ -64,25 +71,27 @@ fun SaleScreen(
         ) {
             // ── Scrollable content ─────────────────────────────────────────
             LazyColumn(Modifier.weight(1f)) {
-                item {
+                item(key = "carousel") {
+                    // Solo el carrusel observa el tick — el resto de la UI no
+                    // recompose cada segundo.
                     DrawCarousel(
                         draws = state.draws,
                         selectedIds = state.selectedDrawIds,
-                        nowMillis = state.nowMillis,
+                        tickFlow = viewModel.tick,
                         onToggle = viewModel::toggleDraw,
                         onSelectAll = viewModel::selectAllDraws,
                         onDeselectAll = viewModel::deselectAllDraws,
                         onClear = viewModel::clearAll,
                         hasJugadas = state.jugadas.isNotEmpty(),
                         primaryColor = primary,
-                        countdownFn = { draw -> viewModel.drawCountdown(draw, state.nowMillis) }
+                        countdownFor = viewModel::drawCountdown,
                     )
                 }
 
-                if (state.error != null) {
-                    item {
+                state.error?.let { errorMsg ->
+                    item(key = "error") {
                         Text(
-                            state.error!!,
+                            errorMsg,
                             Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall
@@ -91,7 +100,7 @@ fun SaleScreen(
                 }
 
                 if (state.jugadas.isNotEmpty()) {
-                    item {
+                    item(key = "toolbar") {
                         JugadasToolbar(
                             count = state.jugadas.size,
                             voltearActivo = state.voltearActivo,
@@ -100,8 +109,11 @@ fun SaleScreen(
                             primaryColor = primary,
                         )
                     }
-                    item { JugadasHeader() }
-                    itemsIndexed(state.jugadas) { index, jugada ->
+                    item(key = "header") { JugadasHeader() }
+                    itemsIndexed(
+                        items = state.jugadas,
+                        key = { _, j -> "${j.drawId}-${j.betTypeId}-${j.numberValue}-${j.flipped}-${j.combined}" },
+                    ) { index, jugada ->
                         JugadaRow(jugada, onDelete = { viewModel.removeJugada(index) })
                     }
                 }
@@ -109,7 +121,7 @@ fun SaleScreen(
 
             // ── Footer: total + VENDER ─────────────────────────────────────
             FooterSection(
-                total = viewModel.totalAmount(),
+                total = totalAmount,
                 jugadasCount = state.jugadas.size,
                 isLoading = state.isLoading,
                 onSell = viewModel::sell,
@@ -153,8 +165,17 @@ fun SaleScreen(
         }
     }
 
-    // Dialog de pre-check de limite
-    if (state.limitDialog.visible) {
+    // Auto-limpieza defensiva: si el dialog quedo abierto de una sesion anterior
+    // pero ya no hay jugadas (post-venta, post-clearAll, navegacion), cerrarlo.
+    LaunchedEffect(state.jugadas.isEmpty()) {
+        if (state.jugadas.isEmpty()) {
+            if (state.combinarDialog.visible) viewModel.cancelCombinarDialog()
+            if (state.limitDialog.visible) viewModel.cancelLimitDialog()
+        }
+    }
+
+    // Dialog de pre-check de limite (solo si tiene conflictos reales)
+    if (state.limitDialog.visible && state.limitDialog.conflicts.isNotEmpty()) {
         LimitConflictDialog(
             dialog = state.limitDialog,
             onDecisionChange = viewModel::updateLimitDecision,
@@ -165,13 +186,22 @@ fun SaleScreen(
         )
     }
 
-    // Dialog de combinar
-    if (state.combinarDialog.visible) {
+    // Dialog de combinar (solo si tiene jugadas para combinar)
+    if (state.combinarDialog.visible && state.jugadas.isNotEmpty()) {
+        val preview by remember(state.jugadas, state.combinarDialog) {
+            derivedStateOf { viewModel.combinarPreview() }
+        }
+        val sourceSummary by remember(state.jugadas) {
+            derivedStateOf { viewModel.combinarSourceSummary() }
+        }
+        val canSuper by remember(state.jugadas) {
+            derivedStateOf { viewModel.canCombinarSuper() }
+        }
         CombinarDialog(
             dialog = state.combinarDialog,
-            preview = viewModel.combinarPreview(),
-            sourceSummary = viewModel.combinarSourceSummary(),
-            canSuper = viewModel.canCombinarSuper(),
+            preview = preview,
+            sourceSummary = sourceSummary,
+            canSuper = canSuper,
             onChange = viewModel::updateCombinarDialog,
             onConfirm = viewModel::submitCombinar,
             onCancel = viewModel::cancelCombinarDialog,
@@ -272,15 +302,17 @@ private fun SaleTopBar(branchName: String, userName: String, onBack: () -> Unit,
 private fun DrawCarousel(
     draws: List<DrawEntity>,
     selectedIds: Set<Long>,
-    nowMillis: Long,
+    tickFlow: StateFlow<Long>,
     onToggle: (Long) -> Unit,
     onSelectAll: () -> Unit,
     onDeselectAll: () -> Unit,
     onClear: () -> Unit,
     hasJugadas: Boolean,
     primaryColor: Color,
-    countdownFn: (DrawEntity) -> String?
+    countdownFor: (DrawEntity, Long) -> String?,
 ) {
+    // El tick solo entra aqui; el resto de SaleScreen no se entera del segundo.
+    val nowMillis by tickFlow.collectAsStateWithLifecycle()
     val allSelected = draws.isNotEmpty() && selectedIds.size == draws.size
 
     Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp)) {
@@ -329,7 +361,7 @@ private fun DrawCarousel(
                 draws.forEach { draw ->
                     DrawCard(
                         draw = draw, isSelected = draw.id in selectedIds,
-                        countdown = countdownFn(draw),
+                        countdown = countdownFor(draw, nowMillis),
                         onClick = { onToggle(draw.id) }, primaryColor = primaryColor
                     )
                 }

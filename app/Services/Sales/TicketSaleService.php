@@ -4,11 +4,10 @@ namespace App\Services\Sales;
 
 use App\Models\BetType;
 use App\Models\Branch;
-use App\Models\CashMovement;
 use App\Models\CashSession;
 use App\Models\Device;
 use App\Models\Draw;
-use App\Models\Lottery;
+use App\Models\LimitConsumption;
 use App\Models\PrinterConfig;
 use App\Models\PrintJob;
 use App\Models\Ticket;
@@ -21,12 +20,14 @@ use App\Services\Lottery\LimitValidationService;
 use App\Services\Lottery\PayoutResolverService;
 use App\Services\Printing\TicketPrintFormatterService;
 use App\Support\Money;
+use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
 class TicketSaleService
 {
     /**
-     * @param array<int, array{bet_type_id: int, number_value: string, amount: int|float|string, position?: string|null}> $plays
+     * @param  array<int, array{bet_type_id: int, number_value: string, amount: int|float|string, position?: string|null}>  $plays
      */
     public function __construct(
         private PayoutResolverService $payoutResolver,
@@ -55,7 +56,7 @@ class TicketSaleService
 
             if ($betType->max_amount !== null && Money::toFloat($amount) > Money::toFloat($betType->max_amount)) {
                 throw new \RuntimeException(
-                    "El monto RD\$" . number_format(Money::toFloat($amount), 2) . " supera el máximo permitido de RD\$" . number_format((float) $betType->max_amount, 2) . " por jugada de {$betType->name}."
+                    'El monto RD$'.number_format(Money::toFloat($amount), 2).' supera el máximo permitido de RD$'.number_format((float) $betType->max_amount, 2)." por jugada de {$betType->name}."
                 );
             }
 
@@ -81,7 +82,7 @@ class TicketSaleService
     /**
      * Ejecuta una venta completa dentro de una transacción.
      *
-     * @param array<int, array{bet_type_id: int, number_value: string, amount: int|float|string, position?: string|null}> $plays
+     * @param  array<int, array{bet_type_id: int, number_value: string, amount: int|float|string, position?: string|null}>  $plays
      */
     public function sell(Branch $branch, Draw $draw, User $user, array $plays, ?Device $device = null, ?CashSession $cashSession = null): Ticket
     {
@@ -110,7 +111,7 @@ class TicketSaleService
 
             if ($betType->max_amount !== null && Money::toFloat($amount) > Money::toFloat($betType->max_amount)) {
                 throw new \RuntimeException(
-                    "El monto RD\$" . number_format(Money::toFloat($amount), 2) . " supera el máximo permitido de RD\$" . number_format((float) $betType->max_amount, 2) . " por jugada de {$betType->name}."
+                    'El monto RD$'.number_format(Money::toFloat($amount), 2).' supera el máximo permitido de RD$'.number_format((float) $betType->max_amount, 2)." por jugada de {$betType->name}."
                 );
             }
 
@@ -231,7 +232,7 @@ class TicketSaleService
                 module: 'Sales',
                 action: 'sale',
                 auditable: $ticket,
-                description: "Venta ticket #{$ticket->ticket_number}. Total: RD\$ " . number_format($ticket->total_amount, 2),
+                description: "Venta ticket #{$ticket->ticket_number}. Total: RD\$ ".number_format($ticket->total_amount, 2),
                 newValues: [
                     'ticket_number' => $ticket->ticket_number,
                     'total_amount' => $ticket->total_amount,
@@ -250,7 +251,7 @@ class TicketSaleService
     public function cancel(Ticket $ticket, User $cancelledBy, string $reason): Ticket
     {
         if (! $ticket->isCancellable()) {
-            throw new \RuntimeException('Este ticket no puede ser anulado. Estado: ' . $ticket->status);
+            throw new \RuntimeException('Este ticket no puede ser anulado. Estado: '.$ticket->status);
         }
 
         DB::transaction(function () use ($ticket, $cancelledBy, $reason): void {
@@ -265,7 +266,7 @@ class TicketSaleService
 
             // Revertir límites: aumentar cancelled_amount en limit_consumptions
             foreach ($ticket->details as $detail) {
-                \App\Models\LimitConsumption::where('company_id', $ticket->company_id)
+                LimitConsumption::where('company_id', $ticket->company_id)
                     ->where('branch_id', $ticket->branch_id)
                     ->where('lottery_id', $detail->lottery_id)
                     ->where('draw_id', $detail->draw_id)
@@ -346,14 +347,32 @@ class TicketSaleService
         }
 
         if (! $draw->isOpen()) {
-            throw new \RuntimeException('El sorteo no está abierto. Estado: ' . $draw->status);
+            throw new \RuntimeException('El sorteo no está abierto. Estado: '.$draw->status);
+        }
+
+        $timezone = $branch->company?->timezone ?: config('app.timezone', 'America/Santo_Domingo');
+        $now = CarbonImmutable::now($timezone);
+        $openAt = CarbonImmutable::parse(
+            $draw->draw_date->toDateString().' '.($draw->open_time ?: '00:00'),
+            $timezone,
+        );
+        $closeAt = CarbonImmutable::parse(
+            $draw->draw_date->toDateString().' '.($draw->close_time ?: '23:59:59'),
+            $timezone,
+        );
+
+        if ($now->lt($openAt)) {
+            throw new \RuntimeException('El sorteo todavia no esta abierto. Apertura: '.($draw->open_time ?: '00:00'));
+        }
+        if ($now->gt($closeAt)) {
+            throw new \RuntimeException('El sorteo ya paso su hora de cierre: '.($draw->close_time ?: '23:59'));
         }
 
         if ($draw->draw_date->isToday() && $draw->open_time && now()->format('H:i') < $draw->open_time) {
-            throw new \RuntimeException('El sorteo todavia no esta abierto. Apertura: ' . $draw->open_time);
+            throw new \RuntimeException('El sorteo todavia no esta abierto. Apertura: '.$draw->open_time);
         }
-        if ($draw->close_time && now()->format('H:i') > $draw->close_time) {
-            throw new \RuntimeException('El sorteo ya pasó su hora de cierre: ' . $draw->close_time);
+        if ($draw->draw_date->isToday() && $draw->close_time && now()->format('H:i') > $draw->close_time) {
+            throw new \RuntimeException('El sorteo ya pasó su hora de cierre: '.$draw->close_time);
         }
 
         $lottery = $draw->lottery;
@@ -364,7 +383,7 @@ class TicketSaleService
 
     private function generateTicketNumber(Branch $branch): string
     {
-        $prefix = $branch->code . '-' . now()->format('ymd');
+        $prefix = $branch->code.'-'.now()->format('ymd');
         $count = Ticket::where('company_id', $branch->company_id)
             ->where('branch_id', $branch->id)
             ->where('ticket_number', 'like', "{$prefix}-%")
@@ -378,7 +397,7 @@ class TicketSaleService
      * Venta originada desde la app móvil Android.
      * No requiere caja abierta (el control de caja aplica solo al web).
      *
-     * @param array<int, array{bet_type_id: int, number_value: string, amount: int|float|string}> $details
+     * @param  array<int, array{bet_type_id: int, number_value: string, amount: int|float|string}>  $details
      */
     public function sellFromMobile(User $user, int $drawId, array $details, string $uuid, ?string $soldAt = null, ?Device $device = null): Ticket
     {
@@ -404,18 +423,18 @@ class TicketSaleService
         $resolvedPlays = [];
         foreach ($details as $detail) {
             $betType = BetType::where('status', 'ACTIVE')->findOrFail($detail['bet_type_id']);
-            $amount  = Money::normalize($detail['amount']);
+            $amount = Money::normalize($detail['amount']);
             $numberValue = str_pad((string) $detail['number_value'], $betType->digits_count, '0', STR_PAD_LEFT);
 
             $payout = $this->payoutResolver->resolve($branch, $draw, $betType, null);
 
             $resolvedPlays[] = [
-                'bet_type'         => $betType,
-                'number_value'     => $numberValue,
-                'amount'           => $amount,
-                'payout_rule_id'   => $payout['payout_rule_id'],
-                'payout_multiplier'=> $payout['payout_multiplier'],
-                'possible_prize'   => Money::multiply($amount, $payout['payout_multiplier']),
+                'bet_type' => $betType,
+                'number_value' => $numberValue,
+                'amount' => $amount,
+                'payout_rule_id' => $payout['payout_rule_id'],
+                'payout_multiplier' => $payout['payout_multiplier'],
+                'possible_prize' => Money::multiply($amount, $payout['payout_multiplier']),
             ];
         }
 
@@ -437,36 +456,36 @@ class TicketSaleService
             $ticketNumber = $this->generateTicketNumber($branch);
 
             $ticket = Ticket::create([
-                'uuid'                 => $uuid,
-                'company_id'           => $branch->company_id,
-                'branch_id'            => $branch->id,
-                'user_id'              => $user->id,
-                'device_id'            => $device?->id,
-                'cash_session_id'      => $cashSession?->id,
-                'ticket_number'        => $ticketNumber,
-                'sale_mode'            => 'MOBILE',
-                'total_amount'         => array_sum(array_map(fn (array $p): float => Money::toFloat($p['amount']), $resolvedPlays)),
+                'uuid' => $uuid,
+                'company_id' => $branch->company_id,
+                'branch_id' => $branch->id,
+                'user_id' => $user->id,
+                'device_id' => $device?->id,
+                'cash_session_id' => $cashSession?->id,
+                'ticket_number' => $ticketNumber,
+                'sale_mode' => 'MOBILE',
+                'total_amount' => array_sum(array_map(fn (array $p): float => Money::toFloat($p['amount']), $resolvedPlays)),
                 'total_possible_prize' => array_sum(array_map(fn (array $p): float => Money::toFloat($p['possible_prize']), $resolvedPlays)),
-                'status'               => 'ACTIVE',
-                'sold_at'              => $soldAt ? \Carbon\Carbon::parse($soldAt) : now(),
+                'status' => 'ACTIVE',
+                'sold_at' => $soldAt ? Carbon::parse($soldAt) : now(),
             ]);
 
             foreach ($resolvedPlays as $play) {
                 TicketDetail::create([
-                    'ticket_id'        => $ticket->id,
-                    'company_id'       => $branch->company_id,
-                    'branch_id'        => $branch->id,
-                    'lottery_id'       => $draw->lottery_id,
-                    'draw_id'          => $draw->id,
-                    'bet_type_id'      => $play['bet_type']->id,
-                    'number_value'     => $play['number_value'],
-                    'normalized_number'=> $play['number_value'],
-                    'amount'           => $play['amount'],
-                    'payout_rule_id'   => $play['payout_rule_id'],
-                    'payout_multiplier'=> $play['payout_multiplier'],
-                    'possible_prize'   => $play['possible_prize'],
-                    'limit_rule_id'    => $play['limit_rule_id'],
-                    'status'           => 'ACTIVE',
+                    'ticket_id' => $ticket->id,
+                    'company_id' => $branch->company_id,
+                    'branch_id' => $branch->id,
+                    'lottery_id' => $draw->lottery_id,
+                    'draw_id' => $draw->id,
+                    'bet_type_id' => $play['bet_type']->id,
+                    'number_value' => $play['number_value'],
+                    'normalized_number' => $play['number_value'],
+                    'amount' => $play['amount'],
+                    'payout_rule_id' => $play['payout_rule_id'],
+                    'payout_multiplier' => $play['payout_multiplier'],
+                    'possible_prize' => $play['possible_prize'],
+                    'limit_rule_id' => $play['limit_rule_id'],
+                    'status' => 'ACTIVE',
                 ]);
             }
 
@@ -514,7 +533,7 @@ class TicketSaleService
                 module: 'Mobile',
                 action: 'sale',
                 auditable: $ticket,
-                description: "Venta móvil ticket #{$ticket->ticket_number}. Total: RD\$ " . number_format($ticket->total_amount, 2),
+                description: "Venta móvil ticket #{$ticket->ticket_number}. Total: RD\$ ".number_format($ticket->total_amount, 2),
             );
 
             return $ticket;

@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             DominicanLotteryCatalogSeeder::class,
             DemoDataSeeder::class,
             DefaultLimitRuleSeeder::class,
+            DemoTicketsSeeder::class,
         ]);
     }
 }
