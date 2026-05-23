@@ -6,9 +6,9 @@
 # ============================================================
 
 $taskName   = "BSLotery Laravel Scheduler"
-$batFile    = "C:\xampp\php\www\BSLotery\scheduler.bat"
+$batFile    = "C:\xampp\htdocs\bslottery\scheduler.bat"
 $phpExe     = "C:\xampp\php\php.exe"
-$projectDir = "C:\xampp\php\www\BSLotery"
+$projectDir = "C:\xampp\htdocs\bslottery"
 
 # --- Validaciones previas ---
 if (-not (Test-Path $phpExe)) {
@@ -63,8 +63,9 @@ if ($task) {
     Write-Host ""
     Write-Host "Comandos activos en el scheduler:" -ForegroundColor Cyan
     Write-Host "  00:01 diario  -> draws:generate-daily  (sorteos del dia)" -ForegroundColor White
-    Write-Host "  cada 30 min   -> license:validate      (validacion de licencia)" -ForegroundColor White
-    Write-Host "  cada 5 min    -> monitoring:scan-branches (monitoreo de sucursales)" -ForegroundColor White
+    Write-Host "  cada minuto   -> draws:auto-close      (cierra sorteos vencidos)" -ForegroundColor White
+    Write-Host "  02:00 diario  -> backup:run --only-files (respaldo de archivos)" -ForegroundColor White
+    Write-Host "  02:30 diario  -> backup:clean          (limpia respaldos viejos)" -ForegroundColor White
     Write-Host ""
     Write-Host "Log en: $projectDir\storage\logs\scheduler.log" -ForegroundColor Yellow
 } else {
