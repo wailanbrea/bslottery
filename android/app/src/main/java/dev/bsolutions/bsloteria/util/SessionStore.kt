@@ -38,14 +38,20 @@ class SessionStore @Inject constructor(@ApplicationContext private val context: 
      * Override de URL persistido por el admin desde SettingsScreen. Si es null/blank,
      * la app usa [BuildConfig.SERVER_URL]. NUNCA se setea desde login — solo desde Settings.
      */
-    val serverUrlFlow: Flow<String?> = context.dataStore.data.map { it[SERVER_URL] }
+    val serverUrlFlow: Flow<String?> = context.dataStore.data.map { prefs ->
+        if (BuildConfig.ALLOW_SERVER_OVERRIDE) prefs[SERVER_URL] else null
+    }
 
     /**
      * URL efectiva a usar para todas las llamadas. Override de Settings tiene
      * prioridad; si no existe, el default compilado en el APK.
      */
     val effectiveServerUrlFlow: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[SERVER_URL]?.takeIf { it.isNotBlank() } ?: BuildConfig.SERVER_URL
+        if (BuildConfig.ALLOW_SERVER_OVERRIDE) {
+            prefs[SERVER_URL]?.takeIf { it.isNotBlank() } ?: BuildConfig.SERVER_URL
+        } else {
+            BuildConfig.SERVER_URL
+        }
     }
 
     val lastSyncFlow: Flow<Long> = context.dataStore.data.map { it[LAST_SYNC] ?: 0L }
@@ -63,7 +69,11 @@ class SessionStore @Inject constructor(@ApplicationContext private val context: 
             branchId = prefs[BRANCH_ID] ?: 0L,
             branchName = prefs[BRANCH_NAME] ?: "",
             companyId = prefs[COMPANY_ID] ?: 0L,
-            serverUrl = prefs[SERVER_URL]?.takeIf { it.isNotBlank() } ?: BuildConfig.SERVER_URL,
+            serverUrl = if (BuildConfig.ALLOW_SERVER_OVERRIDE) {
+                prefs[SERVER_URL]?.takeIf { it.isNotBlank() } ?: BuildConfig.SERVER_URL
+            } else {
+                BuildConfig.SERVER_URL
+            },
             permissions = prefs[PERMISSIONS]?.split(",")?.toSet() ?: emptySet(),
         )
     }
@@ -100,7 +110,11 @@ class SessionStore @Inject constructor(@ApplicationContext private val context: 
     /** Setea un override de URL (desde Settings). Vacio = limpia override. */
     suspend fun updateServerUrl(url: String) {
         context.dataStore.edit {
-            if (url.isBlank()) it.remove(SERVER_URL) else it[SERVER_URL] = url
+            if (!BuildConfig.ALLOW_SERVER_OVERRIDE || url.isBlank()) {
+                it.remove(SERVER_URL)
+            } else {
+                it[SERVER_URL] = url
+            }
         }
     }
 
@@ -152,7 +166,7 @@ class SessionStore @Inject constructor(@ApplicationContext private val context: 
         context.dataStore.edit {
             it.clear()
             if (!deviceUuid.isNullOrBlank()) it[DEVICE_UUID] = deviceUuid
-            if (!urlOverride.isNullOrBlank()) it[SERVER_URL] = urlOverride
+            if (BuildConfig.ALLOW_SERVER_OVERRIDE && !urlOverride.isNullOrBlank()) it[SERVER_URL] = urlOverride
             if (!printerAddress.isNullOrBlank()) it[PRINTER_ADDRESS] = printerAddress
             if (!printerName.isNullOrBlank()) it[PRINTER_NAME] = printerName
             it[AUTO_PRINT] = autoPrint

@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('branch_id')->constrained()->cascadeOnDelete();
             $table->foreignId('device_id')->nullable()->constrained()->nullOnDelete();
             $table->string('status', 20)->default('PENDING'); // PENDING, PROCESSING, COMPLETED, PARTIAL, FAILED
-            $table->timestamp('submitted_at');
+            $table->dateTime('submitted_at');
             $table->timestamp('processed_at')->nullable();
             $table->integer('total_tickets')->default(0);
             $table->integer('accepted_tickets')->default(0);

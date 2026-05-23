@@ -8,12 +8,26 @@ La app usa tres ambientes:
 - `lan`: servidor LAN configurable por propiedad Gradle.
 - `production`: servidor HTTPS configurable por propiedad Gradle.
 
+## Comportamiento de URL por flavor
+
+- `production` queda fijado a `BSLOTTERY_PRODUCTION_SERVER_URL` o al default `https://bslottery.bsolutions.dev`.
+- `production` ignora cualquier `server_url` viejo guardado en el dispositivo.
+- Solo `emulator` y `lan` permiten cambiar la URL desde `Settings`.
+
+Esto evita que un telefono actualizado siga apuntando a una IP LAN o a un ambiente viejo por un override persistido.
+
 ## Builds utiles
 
 ```powershell
 .\gradlew.bat :app:assembleEmulatorDebug
 .\gradlew.bat :app:assembleLanDebug -PBSLOTTERY_LAN_SERVER_URL=http://192.168.1.50:8000
 .\gradlew.bat :app:assembleProductionRelease -PBSLOTTERY_PRODUCTION_SERVER_URL=https://tu-dominio.com
+```
+
+Para el VPS actual:
+
+```powershell
+.\build-production-release.ps1
 ```
 
 ## Seguridad de red

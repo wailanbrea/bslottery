@@ -36,6 +36,9 @@ class LicenseApiClient
             $response = Http::baseUrl((string) config('licensing.api_base_url'))
                 ->acceptJson()
                 ->asJson()
+                ->withOptions([
+                    'verify' => (bool) config('licensing.verify_tls'),
+                ])
                 ->timeout((int) config('licensing.request_timeout_seconds'))
                 ->retry(
                     (int) config('licensing.retry_attempts'),

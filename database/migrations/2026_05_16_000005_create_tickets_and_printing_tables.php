@@ -29,7 +29,7 @@ return new class extends Migration
             $table->text('cancel_reason')->nullable();
             $table->timestamp('paid_at')->nullable();
             $table->string('idempotency_key', 100)->nullable();
-            $table->timestamp('sold_at');
+            $table->dateTime('sold_at');
             $table->timestamp('synced_at')->nullable();
             $table->timestamps();
 
@@ -70,6 +70,23 @@ return new class extends Migration
             $table->index('status');
         });
 
+        Schema::create('printer_configs', function (Blueprint $table): void {
+            $table->id();
+            $table->foreignId('company_id')->constrained()->restrictOnDelete();
+            $table->foreignId('branch_id')->nullable()->constrained()->restrictOnDelete();
+            $table->foreignId('device_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('name', 150);
+            $table->string('printer_type', 30)->default('THERMAL');
+            $table->string('connection_type', 30)->default('USB');
+            $table->string('paper_width', 10)->default('80MM');
+            $table->string('printer_identifier');
+            $table->string('status', 30)->default('ACTIVE');
+            $table->timestamps();
+
+            $table->index(['company_id', 'branch_id']);
+            $table->index('status');
+        });
+
         Schema::create('print_jobs', function (Blueprint $table): void {
             $table->id();
             $table->char('uuid', 36)->unique();
@@ -89,29 +106,12 @@ return new class extends Migration
             $table->index(['company_id', 'branch_id']);
             $table->index('status');
         });
-
-        Schema::create('printer_configs', function (Blueprint $table): void {
-            $table->id();
-            $table->foreignId('company_id')->constrained()->restrictOnDelete();
-            $table->foreignId('branch_id')->nullable()->constrained()->restrictOnDelete();
-            $table->foreignId('device_id')->nullable()->constrained()->nullOnDelete();
-            $table->string('name', 150);
-            $table->string('printer_type', 30)->default('THERMAL');
-            $table->string('connection_type', 30)->default('USB');
-            $table->string('paper_width', 10)->default('80MM');
-            $table->string('printer_identifier');
-            $table->string('status', 30)->default('ACTIVE');
-            $table->timestamps();
-
-            $table->index(['company_id', 'branch_id']);
-            $table->index('status');
-        });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('printer_configs');
         Schema::dropIfExists('print_jobs');
+        Schema::dropIfExists('printer_configs');
         Schema::dropIfExists('ticket_details');
         Schema::dropIfExists('tickets');
     }

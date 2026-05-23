@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('third_number', 10)->nullable();
             $table->string('status', 30)->default('DRAFT');
             $table->foreignId('registered_by')->constrained('users')->restrictOnDelete();
-            $table->timestamp('registered_at');
+            $table->dateTime('registered_at');
             $table->foreignId('confirmed_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('confirmed_at')->nullable();
             $table->text('confirmation_notes')->nullable();
@@ -80,7 +80,7 @@ return new class extends Migration
             $table->foreignId('cash_session_id')->nullable()->constrained()->nullOnDelete();
             $table->decimal('amount', 14, 2);
             $table->foreignId('paid_by')->constrained('users')->restrictOnDelete();
-            $table->timestamp('paid_at');
+            $table->dateTime('paid_at');
             $table->string('status', 30)->default('PAID');
             $table->text('notes')->nullable();
             $table->timestamps();

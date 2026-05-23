@@ -12,13 +12,10 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Tickets — frequent queries: by branch+date, by draw+status, by sold_at range
+        // Tickets — frequent queries: by branch+status and sold_at range
         Schema::table('tickets', function (Blueprint $table): void {
             if (! $this->hasIndex('tickets', 'tickets_company_sold_at_idx')) {
                 $table->index(['company_id', 'sold_at'], 'tickets_company_sold_at_idx');
-            }
-            if (! $this->hasIndex('tickets', 'tickets_draw_status_idx')) {
-                $table->index(['draw_id', 'status'], 'tickets_draw_status_idx');
             }
             if (! $this->hasIndex('tickets', 'tickets_branch_status_idx')) {
                 $table->index(['branch_id', 'status'], 'tickets_branch_status_idx');
@@ -72,10 +69,10 @@ return new class extends Migration
         // Winner tickets — prize payment queries
         Schema::table('winner_tickets', function (Blueprint $table): void {
             if (! $this->hasIndex('winner_tickets', 'wt_draw_status_idx')) {
-                $table->index(['draw_id', 'payment_status'], 'wt_draw_status_idx');
+                $table->index(['draw_id', 'status'], 'wt_draw_status_idx');
             }
             if (! $this->hasIndex('winner_tickets', 'wt_company_status_idx')) {
-                $table->index(['company_id', 'payment_status'], 'wt_company_status_idx');
+                $table->index(['company_id', 'status'], 'wt_company_status_idx');
             }
         });
 
@@ -111,7 +108,7 @@ return new class extends Migration
     public function down(): void
     {
         $drops = [
-            'tickets' => ['tickets_company_sold_at_idx', 'tickets_draw_status_idx', 'tickets_branch_status_idx', 'tickets_user_sold_at_idx'],
+            'tickets' => ['tickets_company_sold_at_idx', 'tickets_branch_status_idx', 'tickets_user_sold_at_idx'],
             'ticket_details' => ['td_draw_number_idx', 'td_lottery_draw_idx'],
             'limit_consumptions' => ['lc_branch_draw_bet_idx'],
             'cash_movements' => ['cm_session_type_idx', 'cm_branch_created_idx'],

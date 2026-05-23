@@ -104,7 +104,7 @@ fun SettingsScreen(
                 SectionLabel("Servidor")
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        if (ServerPresets.ALL.isNotEmpty()) {
+                        if (BuildConfig.ALLOW_SERVER_OVERRIDE && ServerPresets.ALL.isNotEmpty()) {
                             val active = ServerPresets.match(state.serverUrl)
                             Text(
                                 "Conexion rapida",
@@ -158,37 +158,45 @@ fun SettingsScreen(
                             }
                         }
 
-                        OutlinedTextField(
-                            value = state.serverUrl,
-                            onValueChange = viewModel::onServerUrlChange,
-                            label = { Text("URL del servidor") },
-                            placeholder = { Text(state.defaultServerUrl) },
-                            leadingIcon = { Icon(Icons.Default.CloudQueue, null) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            shape = RoundedCornerShape(10.dp)
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(
-                                onClick = viewModel::saveServerUrl,
-                                modifier = Modifier.weight(1f),
+                        if (BuildConfig.ALLOW_SERVER_OVERRIDE) {
+                            OutlinedTextField(
+                                value = state.serverUrl,
+                                onValueChange = viewModel::onServerUrlChange,
+                                label = { Text("URL del servidor") },
+                                placeholder = { Text(state.defaultServerUrl) },
+                                leadingIcon = { Icon(Icons.Default.CloudQueue, null) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
                                 shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Icon(if (state.serverUrlSaved) Icons.Default.CheckCircle else Icons.Default.Save,
-                                    null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text(if (state.serverUrlSaved) "Guardada" else "Guardar")
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = viewModel::saveServerUrl,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(if (state.serverUrlSaved) Icons.Default.CheckCircle else Icons.Default.Save,
+                                        null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(if (state.serverUrlSaved) "Guardada" else "Guardar")
+                                }
+                                OutlinedButton(
+                                    onClick = viewModel::resetServerUrlToDefault,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(10.dp),
+                                    enabled = state.hasUrlOverride,
+                                ) {
+                                    Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Restablecer")
+                                }
                             }
-                            OutlinedButton(
-                                onClick = viewModel::resetServerUrlToDefault,
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(10.dp),
-                                enabled = state.hasUrlOverride,
-                            ) {
-                                Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text("Restablecer")
-                            }
+                        } else {
+                            Text(
+                                "Este APK de produccion queda fijado al VPS configurado al compilar. Para pruebas con otra URL usa un build emulator o lan.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
                 }

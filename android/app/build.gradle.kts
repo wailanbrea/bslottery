@@ -34,6 +34,7 @@ android {
         // Default = produccion (https://bslottery.bsolutions.dev). Los flavors lo sobreescriben.
         buildConfigField("String", "SERVER_URL", "https://bslottery.bsolutions.dev".asBuildConfigString())
         buildConfigField("String", "API_BASE_URL", "\"https://bslottery.bsolutions.dev/api/\"")
+        buildConfigField("boolean", "ALLOW_SERVER_OVERRIDE", "false")
 
         // Presets que el usuario puede alternar en LoginScreen / Settings sin reinstalar.
         // EMULATOR_URL es fijo (alias del host visto desde AVD). LAN_URL viene de
@@ -57,6 +58,7 @@ android {
             val serverUrl = "http://10.0.2.2:8000"
             buildConfigField("String", "SERVER_URL", serverUrl.asBuildConfigString())
             buildConfigField("String", "API_BASE_URL", "${serverUrl.trimEnd('/')}/api/".asBuildConfigString())
+            buildConfigField("boolean", "ALLOW_SERVER_OVERRIDE", "true")
         }
 
         create("lan") {
@@ -71,6 +73,7 @@ android {
 
             buildConfigField("String", "SERVER_URL", serverUrl.asBuildConfigString())
             buildConfigField("String", "API_BASE_URL", "$serverUrl/api/".asBuildConfigString())
+            buildConfigField("boolean", "ALLOW_SERVER_OVERRIDE", "true")
         }
 
         create("production") {
@@ -87,6 +90,7 @@ android {
 
             buildConfigField("String", "SERVER_URL", serverUrl.asBuildConfigString())
             buildConfigField("String", "API_BASE_URL", "$serverUrl/api/".asBuildConfigString())
+            buildConfigField("boolean", "ALLOW_SERVER_OVERRIDE", "false")
         }
     }
 

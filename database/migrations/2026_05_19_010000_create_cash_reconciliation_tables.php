@@ -63,7 +63,7 @@ return new class extends Migration
             $table->decimal('surplus_amount', 14, 2)->default(0);
             $table->string('status', 30)->default('PENDING_REVIEW');
             $table->text('notes')->nullable();
-            $table->timestamp('closed_at');
+            $table->dateTime('closed_at');
             $table->foreignId('reviewed_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('reviewed_at')->nullable();
             $table->text('review_notes')->nullable();
@@ -84,7 +84,10 @@ return new class extends Migration
             $table->decimal('subtotal', 14, 2)->default(0);
             $table->timestamps();
 
-            $table->unique(['cash_reconciliation_id', 'type', 'denomination']);
+            $table->unique(
+                ['cash_reconciliation_id', 'type', 'denomination'],
+                'ccd_reconciliation_type_denom_unique'
+            );
             $table->index(['company_id', 'branch_id']);
         });
 

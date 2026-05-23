@@ -541,15 +541,19 @@ Si necesitas una URL diferente al default para producción (ej. staging):
 2. Instala (acepta "Permitir orígenes desconocidos" la primera vez).
 3. Abre la app — solo verás **Usuario** y **Contraseña**. La URL del VPS está
    embebida en el APK; el cajero no la ve.
-4. Login con el COMPANY_OWNER creado en el setup inicial.
-5. La app autoriza el device automáticamente. Ve al panel web del VPS
+4. En builds `production`, la app ignora cualquier `server_url` viejo guardado
+   en el dispositivo. Esto evita que el teléfono siga apuntando a una IP LAN
+   o a otro ambiente después de actualizar el APK.
+5. Login con el COMPANY_OWNER creado en el setup inicial.
+6. La app autoriza el device automáticamente. Ve al panel web del VPS
    (`/admin/devices`) y marca el device como `AUTHORIZED`.
-6. Vuelve a la app y reintenta el login (o usa el botón **Reintentar** en
+7. Vuelve a la app y reintenta el login (o usa el botón **Reintentar** en
    la pantalla de sincronización).
 
 ### 10.4 Cambio temporal de URL desde Settings (soporte/QA)
 
-El admin puede cambiar la URL **desde dentro de la app** sin recompilar:
+El admin puede cambiar la URL **desde dentro de la app** sin recompilar, pero
+solo en builds `emulator` y `lan`:
 
 1. Login normal.
 2. **Configuración → Servidor**.
@@ -558,8 +562,9 @@ El admin puede cambiar la URL **desde dentro de la app** sin recompilar:
 4. Edita el campo URL y guarda → todas las llamadas siguientes irán a esa URL.
 5. Para volver al default del APK → toca **Restablecer**.
 
-> Esto es un override persistente en el dispositivo. Se mantiene aunque el
-> usuario haga logout. Solo lo borra **Restablecer** o desinstalar la app.
+> En `production` este override está bloqueado a propósito para evitar que los
+> cajeros queden pegados a una URL vieja. Si necesitas cambiar de servidor para
+> soporte o QA, compila un flavor `lan` o `emulator`.
 
 ### 10.5 Troubleshooting Android
 

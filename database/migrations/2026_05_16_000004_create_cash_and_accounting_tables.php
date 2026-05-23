@@ -28,7 +28,7 @@ return new class extends Migration
             $table->decimal('shortage_amount', 14, 2)->default(0);
             $table->decimal('surplus_amount', 14, 2)->default(0);
             $table->string('status', 30)->default('OPEN');
-            $table->timestamp('opened_at');
+            $table->dateTime('opened_at');
             $table->timestamp('closed_at')->nullable();
             $table->foreignId('confirmed_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('confirmed_at')->nullable();
