@@ -112,7 +112,7 @@ fun SaleScreen(
                     item(key = "header") { JugadasHeader() }
                     itemsIndexed(
                         items = state.jugadas,
-                        key = { _, j -> "${j.drawId}-${j.betTypeId}-${j.numberValue}-${j.flipped}-${j.combined}" },
+                        key = { index, j -> "${j.drawId}-${j.betTypeId}-${j.numberValue}-${j.flipped}-${j.combined}-${index}" },
                     ) { index, jugada ->
                         JugadaRow(jugada, onDelete = { viewModel.removeJugada(index) })
                     }
@@ -925,12 +925,23 @@ private fun KeypadPanel(
                 Modifier.fillMaxWidth().padding(bottom = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                KeypadButton(icon = Icons.AutoMirrored.Filled.Backspace, iconTint = MaterialTheme.colorScheme.error,
-                    onClick = onBackspace, modifier = Modifier.weight(1f))
-                KeypadButton(text = "0", onClick = { onDigit("0") }, modifier = Modifier.weight(1f))
+                KeypadButton(
+                    icon = Icons.AutoMirrored.Filled.Backspace,
+                    iconTint = MaterialTheme.colorScheme.error,
+                    loading = state.preCheckLoading,
+                    onClick = onBackspace,
+                    modifier = Modifier.weight(1f)
+                )
+                KeypadButton(
+                    text = "0",
+                    loading = state.preCheckLoading,
+                    onClick = { onDigit("0") },
+                    modifier = Modifier.weight(1f)
+                )
                 KeypadButton(
                     icon = if (showArrow) Icons.AutoMirrored.Filled.ArrowForward else Icons.Default.Add,
                     iconTint = primaryColor,
+                    loading = state.preCheckLoading,
                     onClick = onEnter,
                     modifier = Modifier.weight(1f)
                 )
@@ -998,16 +1009,23 @@ private fun KeypadButton(
     text: String? = null,
     icon: ImageVector? = null,
     iconTint: Color = Color.Unspecified,
+    loading: Boolean = false,
     onClick: () -> Unit
 ) {
+    val enabled = !loading
     Surface(
-        modifier = modifier.height(46.dp).clickable(onClick = onClick),
+        modifier = modifier.height(46.dp).clickable(enabled = enabled, onClick = onClick),
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(0.2f))
     ) {
         Box(contentAlignment = Alignment.Center) {
             when {
+                loading -> CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = if (iconTint != Color.Unspecified) iconTint else MaterialTheme.colorScheme.primary
+                )
                 icon != null -> Icon(icon, null, tint = iconTint, modifier = Modifier.size(22.dp))
                 text != null -> Text(text, fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold, fontSize = 18.sp,

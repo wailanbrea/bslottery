@@ -35,6 +35,7 @@ class SyncRepository @Inject constructor(
     private val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
 
     suspend fun syncCatalog(): Result<Unit> {
+        val syncStart = System.currentTimeMillis()
         return try {
             val response = api.getSyncData(null)
             if (!response.isSuccessful) {
@@ -52,9 +53,11 @@ class SyncRepository @Inject constructor(
 
             drawDao.upsertAll(
                 body.draws.map { d ->
-                    DrawEntity(d.id, d.lotteryId, d.lotteryName, d.name, d.drawDate, d.drawTime, d.status, d.cutoffTime)
+                    DrawEntity(d.id, d.lotteryId, d.lotteryName, d.name, d.drawDate, d.drawTime, d.status, d.cutoffTime, syncedAt = syncStart)
                 },
             )
+            drawDao.deleteStaleDraws(syncStart)
+
             betTypeDao.upsertAll(
                 body.betTypes.map { b ->
                     BetTypeEntity(b.id, b.name, b.code, b.multiplier, b.lotteryId)

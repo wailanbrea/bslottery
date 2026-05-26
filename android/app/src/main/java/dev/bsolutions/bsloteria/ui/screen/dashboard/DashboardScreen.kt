@@ -56,7 +56,7 @@ fun DashboardScreen(
                             Text(
                                 "${it.branchName} · ${it.userName}",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
                             )
                         }
                     }

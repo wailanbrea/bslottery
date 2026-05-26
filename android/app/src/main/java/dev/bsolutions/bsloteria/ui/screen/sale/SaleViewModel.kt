@@ -105,6 +105,7 @@ data class SaleUiState(
     val combinarDialog: CombinarDialogState = CombinarDialogState(),
 )
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class SaleViewModel @Inject constructor(
     private val ticketRepository: TicketRepository,
@@ -140,8 +141,9 @@ class SaleViewModel @Inject constructor(
                 .map { it / 60_000L }
                 .distinctUntilChanged()
                 .flatMapLatest {
-                    val today = LocalDate.now().toString()
-                    val nowTime = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
+                    val zoneId = java.time.ZoneId.of("America/Santo_Domingo")
+                    val today = LocalDate.now(zoneId).toString()
+                    val nowTime = LocalTime.now(zoneId).format(DateTimeFormatter.ofPattern("HH:mm"))
                     ticketRepository.observeOpenDraws(today, nowTime)
                 }
                 .collect { draws ->
@@ -249,6 +251,7 @@ class SaleViewModel @Inject constructor(
 
     fun addJugada() {
         val s = _state.value
+        if (s.preCheckLoading || s.isLoading) return
         if (s.selectedDrawIds.isEmpty()) { _state.update { it.copy(error = "Seleccione al menos un sorteo") }; return }
         if (s.numberInput.isBlank()) { _state.update { it.copy(error = "Ingrese un número") }; return }
         val amount = s.amountInput.toBigDecimalOrNull()?.setScale(2, RoundingMode.HALF_UP)
@@ -317,7 +320,9 @@ class SaleViewModel @Inject constructor(
 
         drawIds.map { drawId ->
             async {
-                val response = ticketRepository.checkLimit(drawId, betTypeId, numberDigits)
+                val response = kotlinx.coroutines.withTimeoutOrNull(800L) {
+                    ticketRepository.checkLimit(drawId, betTypeId, numberDigits)
+                }
                 val available = response?.available
                 val pendingInCart = getCartPendingFor(drawId, betTypeId, numberValue)
                 val effective = available?.let { maxOf(0.0, it - pendingInCart) }
@@ -357,23 +362,41 @@ class SaleViewModel @Inject constructor(
         adjusted: Boolean,
     ) {
         val s = _state.value
-        val newJugadas = drawIds.mapNotNull { drawId ->
-            val draw = s.draws.firstOrNull { it.id == drawId } ?: return@mapNotNull null
-            JugadaItem(
-                drawId = drawId,
-                drawName = draw.name,
-                lotteryName = draw.lotteryName,
-                betTypeId = betType.id,
-                betTypeName = betType.name,
-                betTypeCode = betType.code,
-                numberValue = numberValue,
-                amount = amount,
-                limitAdjusted = adjusted,
-            )
+        val merged = s.jugadas.toMutableList()
+        val newAmountBg = amount.toBigDecimalOrNull() ?: BigDecimal.ZERO
+
+        drawIds.forEach { drawId ->
+            val draw = s.draws.firstOrNull { it.id == drawId } ?: return@forEach
+            val existingIdx = merged.indexOfFirst {
+                it.drawId == drawId && it.betTypeId == betType.id && it.numberValue == numberValue
+            }
+            if (existingIdx >= 0) {
+                val existing = merged[existingIdx]
+                val sum = (existing.amount.toBigDecimalOrNull() ?: BigDecimal.ZERO)
+                    .add(newAmountBg)
+                    .setScale(2, RoundingMode.HALF_UP)
+                merged[existingIdx] = existing.copy(
+                    amount = sum.toPlainString(),
+                    limitAdjusted = existing.limitAdjusted || adjusted
+                )
+            } else {
+                merged += JugadaItem(
+                    drawId = drawId,
+                    drawName = draw.name,
+                    lotteryName = draw.lotteryName,
+                    betTypeId = betType.id,
+                    betTypeName = betType.name,
+                    betTypeCode = betType.code,
+                    numberValue = numberValue,
+                    amount = newAmountBg.setScale(2, RoundingMode.HALF_UP).toPlainString(),
+                    limitAdjusted = adjusted,
+                )
+            }
         }
+
         _state.update {
             it.copy(
-                jugadas = it.jugadas + newJugadas,
+                jugadas = merged,
                 numberInput = "",
                 amountInput = "",
                 isMontoActive = false,
@@ -768,7 +791,10 @@ class SaleViewModel @Inject constructor(
         val cutoff = draw.cutoffTime ?: draw.drawTime
         return try {
             val parts = cutoff.split(":").map { it.toInt() }
-            val cal = java.util.Calendar.getInstance()
+            val zoneId = java.time.ZoneId.of("America/Santo_Domingo")
+            val tz = java.util.TimeZone.getTimeZone(zoneId)
+            val cal = java.util.Calendar.getInstance(tz)
+            cal.timeInMillis = nowMillis
             cal.set(java.util.Calendar.HOUR_OF_DAY, parts[0])
             cal.set(java.util.Calendar.MINUTE, parts[1])
             cal.set(java.util.Calendar.SECOND, 0)
