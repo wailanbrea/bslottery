@@ -22,13 +22,7 @@ $todaySales = $branchId
         ->sum('total_amount')
     : 0;
 $now = now();
-$openDraws = \App\Models\Draw::with('lottery')
-    ->where('company_id', $companyId)
-    ->where('status', 'OPEN')
-    ->where('draw_date', '>=', now()->toDateString())
-    ->orderBy('draw_date')
-    ->orderBy('scheduled_time')
-    ->get();
+$openDraws = collect($draws ?? [])->values();
 $sortDrawsByName = fn ($draws) => $draws
     ->sortBy([
         fn ($draw) => mb_strtolower($draw->lottery?->name ?? ''),
