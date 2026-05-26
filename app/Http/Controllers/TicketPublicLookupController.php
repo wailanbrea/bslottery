@@ -27,8 +27,8 @@ class TicketPublicLookupController extends Controller
                 'details.lottery:id,name',
                 'details.draw:id,name,draw_date,scheduled_time,status',
                 'details.betType:id,name,code',
-                'winnerTickets.detail.lottery:id,name',
-                'winnerTickets.detail.draw:id,name',
+                'winnerTickets.ticketDetail.lottery:id,name',
+                'winnerTickets.ticketDetail.draw:id,name',
             ])
             ->where('uuid', $uuid)
             ->first();
@@ -51,6 +51,7 @@ class TicketPublicLookupController extends Controller
                 'draw' => $first->draw,
                 'lottery' => $first->lottery,
                 'jugadas' => $details->map(fn ($d) => [
+                    'detail_id' => $d->id,
                     'numero' => $d->number_value,
                     'tipo' => $d->betType?->name ?? '—',
                     'codigo' => $d->betType?->code ?? '',

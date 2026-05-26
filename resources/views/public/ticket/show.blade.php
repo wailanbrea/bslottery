@@ -13,6 +13,8 @@
         .number-pill { background: #0d6efd; color: #fff; padding: 2px 10px; border-radius: 12px; font-weight: 600; }
         .number-pill.winner { background: #198754; }
         .winning-number { display: inline-block; min-width: 36px; text-align: center; background: #ffc107; color: #212529; font-weight: bold; padding: 4px 8px; border-radius: 6px; margin: 0 2px; }
+        .winning-number.match { background: #198754; color: #fff; }
+        .result-numbers { display: inline-flex; align-items: center; gap: 4px; flex-wrap: nowrap; white-space: nowrap; }
         .status-badge { font-size: 0.85rem; }
         @media (max-width: 480px) {
             .ticket-card { margin: 0; box-shadow: none !important; border-radius: 0 !important; }
@@ -84,6 +86,12 @@
 
                 {{-- Jugadas agrupadas por sorteo --}}
                 @foreach ($groupedDetails as $group)
+                    @php
+                        $winningNumbers = collect($group['jugadas'])
+                            ->filter(fn ($jugada) => $winnersByDetail->has($jugada['detail_id']))
+                            ->pluck('numero')
+                            ->all();
+                    @endphp
                     <div class="mb-3 p-3 border rounded">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div>
@@ -96,15 +104,15 @@
                             @if ($group['resultado'])
                                 <div class="text-end">
                                     <div class="small text-muted">Resultado</div>
-                                    <div>
+                                    <div class="result-numbers">
                                         @if ($group['resultado']['primero'])
-                                            <span class="winning-number">{{ $group['resultado']['primero'] }}</span>
+                                            <span class="winning-number {{ in_array($group['resultado']['primero'], $winningNumbers, true) ? 'match' : '' }}">{{ $group['resultado']['primero'] }}</span>
                                         @endif
                                         @if ($group['resultado']['segundo'])
-                                            <span class="winning-number">{{ $group['resultado']['segundo'] }}</span>
+                                            <span class="winning-number {{ in_array($group['resultado']['segundo'], $winningNumbers, true) ? 'match' : '' }}">{{ $group['resultado']['segundo'] }}</span>
                                         @endif
                                         @if ($group['resultado']['tercero'])
-                                            <span class="winning-number">{{ $group['resultado']['tercero'] }}</span>
+                                            <span class="winning-number {{ in_array($group['resultado']['tercero'], $winningNumbers, true) ? 'match' : '' }}">{{ $group['resultado']['tercero'] }}</span>
                                         @endif
                                     </div>
                                 </div>
@@ -113,8 +121,11 @@
                         <table class="table table-sm mb-0 play-row small">
                             <tbody>
                                 @foreach ($group['jugadas'] as $jugada)
+                                    @php
+                                        $isWinningPlay = $winnersByDetail->has($jugada['detail_id']);
+                                    @endphp
                                     <tr>
-                                        <td><span class="number-pill">{{ $jugada['numero'] }}</span></td>
+                                        <td><span class="number-pill {{ $isWinningPlay ? 'winner' : '' }}">{{ $jugada['numero'] }}</span></td>
                                         <td class="text-muted">{{ $jugada['tipo'] }}</td>
                                         <td class="text-end">RD$ {{ number_format((float)$jugada['monto'], 2) }}</td>
                                     </tr>
