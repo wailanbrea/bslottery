@@ -106,10 +106,12 @@ fun TicketDetailScreen(
             // ── Premios (si no es offline pendiente) ──────────────────────
             if (!state.isSyncPending) {
                 item {
+                    val showPayButton = state.hasReleasablePrizes || 
+                            state.status.uppercase() in listOf("WINNER", "PARTIALLY_PAID")
                     PrizesSection(
                         winners = state.winners,
                         totalReleased = state.totalReleased,
-                        hasReleasable = state.hasReleasablePrizes,
+                        showPayButton = showPayButton,
                         isLoading = state.winnersLoading,
                         isPaying = state.isPayingPrize,
                         error = state.winnersError,
@@ -157,6 +159,18 @@ fun TicketDetailScreen(
     }
 }
 
+private fun formatTicketStatus(status: String): String {
+    return when (status.uppercase()) {
+        "ACTIVE" -> "Activo"
+        "WINNER" -> "Ganador"
+        "LOSER" -> "No Ganador"
+        "PARTIALLY_PAID" -> "Pago Parcial"
+        "PAID" -> "Pagado"
+        "CANCELLED" -> "Anulado"
+        else -> status
+    }
+}
+
 // ─── Header card ───────────────────────────────────────────────────────────
 
 @Composable
@@ -196,6 +210,7 @@ private fun TicketHeaderCard(state: TicketDetailUiState, primary: Color) {
             MetaRow(label = "Lotería", value = state.lotteryName.ifBlank { "—" })
             MetaRow(label = "Sorteo", value = state.drawName.ifBlank { "—" })
             MetaRow(label = "Fecha y hora", value = state.soldAt.ifBlank { "—" })
+            MetaRow(label = "Estado del ticket", value = formatTicketStatus(state.status))
 
             if (state.syncError != null) {
                 Surface(
@@ -422,7 +437,7 @@ private fun JugadaCard(line: TicketLineItem, primary: Color) {
 private fun PrizesSection(
     winners: List<WinnerDto>,
     totalReleased: String,
-    hasReleasable: Boolean,
+    showPayButton: Boolean,
     isLoading: Boolean,
     isPaying: Boolean,
     error: String?,
@@ -454,11 +469,12 @@ private fun PrizesSection(
                 }
             }
 
-            when {
-                isLoading -> Box(Modifier.fillMaxWidth().padding(12.dp), Alignment.Center) {
+            if (isLoading) {
+                Box(Modifier.fillMaxWidth().padding(12.dp), Alignment.Center) {
                     CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
                 }
-                error != null -> {
+            } else {
+                error?.let { err ->
                     Surface(
                         color = MaterialTheme.colorScheme.errorContainer,
                         shape = RoundedCornerShape(8.dp),
@@ -469,19 +485,21 @@ private fun PrizesSection(
                                 tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text(error, Modifier.weight(1f),
+                            Text(err, Modifier.weight(1f),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onErrorContainer)
                             TextButton(onClick = onDismissError) { Text("OK") }
                         }
                     }
                 }
-                winners.isEmpty() -> Text(
-                    "Este ticket no tiene premios registrados.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                else -> {
+
+                if (winners.isEmpty()) {
+                    Text(
+                        "Este ticket no tiene premios registrados.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
                     winners.forEach { w -> WinnerRow(w) }
                     HorizontalDivider(thickness = 0.5.dp)
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
@@ -494,22 +512,24 @@ private fun PrizesSection(
                             fontSize = 18.sp
                         )
                     }
-                    if (hasReleasable) {
-                        Button(
-                            onClick = onPayClick,
-                            enabled = !isPaying,
-                            modifier = Modifier.fillMaxWidth().height(50.dp)
-                        ) {
-                            if (isPaying) {
-                                CircularProgressIndicator(
-                                    Modifier.size(20.dp), strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
-                            } else {
-                                Icon(Icons.Default.AttachMoney, null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("PAGAR PREMIO", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                            }
+                }
+
+                if (showPayButton) {
+                    Spacer(Modifier.height(4.dp))
+                    Button(
+                        onClick = onPayClick,
+                        enabled = !isPaying,
+                        modifier = Modifier.fillMaxWidth().height(50.dp)
+                    ) {
+                        if (isPaying) {
+                            CircularProgressIndicator(
+                                Modifier.size(20.dp), strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        } else {
+                            Icon(Icons.Default.AttachMoney, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("PAGAR PREMIO", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                         }
                     }
                 }
