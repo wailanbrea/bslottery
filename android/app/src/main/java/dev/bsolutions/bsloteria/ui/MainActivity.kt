@@ -87,7 +87,10 @@ fun BSLoteriaNavHost() {
                 }
             )
         }
-        composable(Screen.Dashboard.route) {
+        composable(Screen.Dashboard.route) { backStackEntry ->
+            val scannedToken = backStackEntry.savedStateHandle
+                .getStateFlow<String?>(Routes.SCAN_RESULT_KEY, null)
+                .collectAsState().value
             DashboardScreen(
                 viewModel = hiltViewModel(),
                 onNavigate = { route -> navController.navigate(route) },
@@ -95,6 +98,10 @@ fun BSLoteriaNavHost() {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(0) { inclusive = true }
                     }
+                },
+                scannedToken = scannedToken,
+                onScannedTokenConsumed = {
+                    backStackEntry.savedStateHandle[Routes.SCAN_RESULT_KEY] = null
                 }
             )
         }

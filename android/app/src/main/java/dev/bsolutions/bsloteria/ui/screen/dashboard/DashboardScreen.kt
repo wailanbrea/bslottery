@@ -1,9 +1,11 @@
 package dev.bsolutions.bsloteria.ui.screen.dashboard
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
@@ -29,11 +31,28 @@ private data class DashboardItem(
 fun DashboardScreen(
     viewModel: DashboardViewModel,
     onNavigate: (String) -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    scannedToken: String? = null,
+    onScannedTokenConsumed: () -> Unit = {}
 ) {
     val session by viewModel.session.collectAsState()
     val pendingCount by viewModel.pendingCount.collectAsState()
+    val lookupLoading by viewModel.lookupLoading.collectAsState()
+    val lookupError by viewModel.lookupError.collectAsState()
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var showRevisarDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(scannedToken) {
+        val token = scannedToken
+        if (!token.isNullOrBlank()) {
+            onScannedTokenConsumed()
+            showRevisarDialog = true
+            viewModel.lookupTicket(token) { uuid ->
+                showRevisarDialog = false
+                onNavigate(Screen.TicketDetail.createRoute(uuid))
+            }
+        }
+    }
 
     val items = listOf(
         DashboardItem("Caja", Icons.Default.AccountBalanceWallet, Screen.Cash.route,
@@ -43,6 +62,8 @@ fun DashboardScreen(
         DashboardItem("Historial tickets", Icons.Default.History, Screen.Tickets.route),
         DashboardItem("Sincronización", Icons.Default.Sync, Screen.Sync.route, badge = pendingCount,
             color = { if (pendingCount > 0) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.secondary }),
+        DashboardItem("Revisar o Pagar", Icons.Default.QrCodeScanner, "revisar_pagar",
+            color = { MaterialTheme.colorScheme.primary }),
         DashboardItem("Configuración", Icons.Default.Settings, Screen.Settings.route),
     )
 
@@ -82,7 +103,16 @@ fun DashboardScreen(
             modifier = Modifier.fillMaxSize().padding(padding)
         ) {
             items(items) { item ->
-                DashboardCard(item = item, onClick = { onNavigate(item.route) })
+                DashboardCard(
+                    item = item,
+                    onClick = {
+                        if (item.route == "revisar_pagar") {
+                            showRevisarDialog = true
+                        } else {
+                            onNavigate(item.route)
+                        }
+                    }
+                )
             }
         }
     }
@@ -97,6 +127,127 @@ fun DashboardScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showLogoutDialog = false }) { Text("No") }
+            }
+        )
+    }
+
+    if (showRevisarDialog) {
+        var ticketQuery by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = {
+                if (!lookupLoading) {
+                    showRevisarDialog = false
+                    viewModel.clearLookupError()
+                }
+            },
+            title = {
+                Text(
+                    text = "Revisar o Pagar Ticket",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge
+                )
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Ingrese el número de ticket o use el escáner QR.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        OutlinedTextField(
+                            value = ticketQuery,
+                            onValueChange = {
+                                ticketQuery = it
+                                viewModel.clearLookupError()
+                            },
+                            label = { Text("Número de ticket") },
+                            placeholder = { Text("Ej: MOB01-260520-0001") },
+                            singleLine = true,
+                            enabled = !lookupLoading,
+                            modifier = Modifier.weight(1f),
+                            leadingIcon = {
+                                Icon(Icons.Default.ConfirmationNumber, contentDescription = null)
+                            }
+                        )
+                        
+                        IconButton(
+                            onClick = {
+                                viewModel.clearLookupError()
+                                onNavigate(Screen.ScanQr.route)
+                            },
+                            enabled = !lookupLoading,
+                            modifier = Modifier
+                                .size(52.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.QrCodeScanner,
+                                contentDescription = "Escanear QR",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                    
+                    if (lookupLoading) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.5.dp
+                            )
+                        }
+                    }
+                    
+                    lookupError?.let { error ->
+                        Text(
+                            text = error,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.lookupTicket(ticketQuery) { uuid ->
+                            showRevisarDialog = false
+                            viewModel.clearLookupError()
+                            onNavigate(Screen.TicketDetail.createRoute(uuid))
+                        }
+                    },
+                    enabled = !lookupLoading && ticketQuery.isNotBlank()
+                ) {
+                    Text("Buscar")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showRevisarDialog = false
+                        viewModel.clearLookupError()
+                    },
+                    enabled = !lookupLoading
+                ) {
+                    Text("Cancelar")
+                }
             }
         )
     }
