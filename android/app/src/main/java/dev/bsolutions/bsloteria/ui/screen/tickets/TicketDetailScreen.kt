@@ -1,5 +1,6 @@
 package dev.bsolutions.bsloteria.ui.screen.tickets
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -97,11 +98,11 @@ fun TicketDetailScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp),
             modifier = Modifier.padding(padding)
         ) {
-            // ── Header con numero + meta ───────────────────────────────────
-            item { TicketHeaderCard(state, primary) }
+            // ── Banner de Estado ───────────────────────────────────────────
+            item { TicketStatusBanner(state) }
 
-            // ── Total destacado ────────────────────────────────────────────
-            item { TotalCard(state.totalAmount, primary) }
+            // ── Ficha del Ticket Unificada ─────────────────────────────────
+            item { UnifiedTicketCard(state, primary) }
 
             // ── Premios (si no es offline pendiente) ──────────────────────
             if (!state.isSyncPending) {
@@ -171,46 +172,171 @@ private fun formatTicketStatus(status: String): String {
     }
 }
 
-// ─── Header card ───────────────────────────────────────────────────────────
+@Composable
+private fun TicketStatusBanner(state: TicketDetailUiState) {
+    if (state.status.isBlank()) return
+
+    val status = state.status.uppercase()
+    val isWinner = status in listOf("WINNER", "PARTIALLY_PAID")
+    
+    val containerColor: Color
+    val contentColor: Color
+    val icon: androidx.compose.ui.graphics.vector.ImageVector
+    val title: String
+    val subtitle: String?
+
+    when {
+        isWinner -> {
+            containerColor = Color(0xFFE8F5E9) // Verde suave
+            contentColor = Color(0xFF2E7D32)   // Verde oscuro
+            icon = Icons.Default.EmojiEvents
+            title = "¡TICKET GANADOR!"
+            subtitle = "Monto a Pagar: RD$ ${state.totalReleased}"
+        }
+        status == "PAID" -> {
+            containerColor = Color(0xFFE3F2FD) // Azul suave
+            contentColor = Color(0xFF1565C0)   // Azul oscuro
+            icon = Icons.Default.CheckCircle
+            title = "TICKET PAGADO"
+            subtitle = "Monto entregado: RD$ ${state.totalReleased}"
+        }
+        status == "CANCELLED" -> {
+            containerColor = Color(0xFFFFEBEE) // Rojo suave
+            contentColor = Color(0xFFC62828)   // Rojo oscuro
+            icon = Icons.Default.Block
+            title = "TICKET ANULADO"
+            subtitle = if (!state.syncError.isNullOrBlank()) state.syncError else null
+        }
+        status == "LOSER" -> {
+            containerColor = Color(0xFFF5F5F5) // Gris suave
+            contentColor = Color(0xFF616161)   // Gris oscuro
+            icon = Icons.Default.Cancel
+            title = "TICKET NO GANADOR"
+            subtitle = "No acertó ninguna combinación."
+        }
+        else -> { // ACTIVE
+            containerColor = Color(0xFFFFF8E1) // Amarillo/Naranja suave
+            contentColor = Color(0xFFE65100)   // Naranja oscuro
+            icon = Icons.Default.ConfirmationNumber
+            title = "TICKET ACTIVO"
+            subtitle = "Pendiente de sorteo y resultados."
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        border = BorderStroke(1.dp, contentColor.copy(alpha = 0.3f))
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .background(contentColor.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.Bold,
+                    color = contentColor,
+                    style = MaterialTheme.typography.titleMedium,
+                    letterSpacing = 0.5.sp
+                )
+                subtitle?.let {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = it,
+                        fontWeight = if (isWinner || status == "PAID") FontWeight.Bold else FontWeight.Medium,
+                        color = contentColor.copy(alpha = 0.9f),
+                        style = if (isWinner || status == "PAID") MaterialTheme.typography.titleLarge else MaterialTheme.typography.bodyMedium,
+                        fontFamily = if (isWinner || status == "PAID") FontFamily.Monospace else FontFamily.Default
+                    )
+                }
+            }
+        }
+    }
+}
 
 @Composable
-private fun TicketHeaderCard(state: TicketDetailUiState, primary: Color) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+private fun UnifiedTicketCard(state: TicketDetailUiState, primary: Color) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    ) {
         Column(
-            Modifier.fillMaxWidth().padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Status chip arriba a la derecha
+            // Cabecera: Ticket ID + Sync status
             Row(
-                Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(Modifier.weight(1f)) {
+                Column {
                     Text(
-                        "Número de ticket",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Medium,
+                        text = "Número de ticket",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = primary,
+                        letterSpacing = 0.5.sp
                     )
+                    Spacer(Modifier.height(2.dp))
                     Text(
-                        state.ticketNumber.ifBlank { "—" },
+                        text = state.ticketNumber.ifBlank { "—" },
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 18.sp,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
                 StatusChip(state.isSyncPending)
             }
 
-            HorizontalDivider(thickness = 0.5.dp)
+            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
 
-            // Lotería y sorteo
+            // Detalles
             MetaRow(label = "Lotería", value = state.lotteryName.ifBlank { "—" })
             MetaRow(label = "Sorteo", value = state.drawName.ifBlank { "—" })
             MetaRow(label = "Fecha y hora", value = state.soldAt.ifBlank { "—" })
-            MetaRow(label = "Estado del ticket", value = formatTicketStatus(state.status))
+
+            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+
+            // Total Apostado Destacado
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Total Jugado",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "RD$ ${state.totalAmount}",
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    color = primary
+                )
+            }
 
             if (state.syncError != null) {
                 Surface(
@@ -296,45 +422,6 @@ private fun StatusChip(isPending: Boolean) {
 }
 
 private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
-
-// ─── Total card ────────────────────────────────────────────────────────────
-
-@Composable
-private fun TotalCard(totalAmount: String, primary: Color) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = primary.copy(0.08f)),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column {
-                Text(
-                    "Total apostado",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Medium,
-                )
-                Text(
-                    "RD\$ $totalAmount",
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 26.sp,
-                    color = primary,
-                )
-            }
-            Icon(
-                Icons.Default.Payments,
-                null,
-                tint = primary,
-                modifier = Modifier.size(40.dp),
-            )
-        }
-    }
-}
 
 // ─── Section label ─────────────────────────────────────────────────────────
 
