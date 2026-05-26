@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -185,20 +186,40 @@ private fun TicketStatusBanner(state: TicketDetailUiState) {
     val title: String
     val subtitle: String?
 
+    val displayAmount = when {
+        state.winnersLoading -> "..."
+        else -> {
+            val amount = state.totalReleased
+            if (amount == "0.00" || amount.isBlank()) {
+                val sum = state.winners
+                    .filter { it.status.uppercase() in listOf("RELEASED", "HELD") }
+                    .sumOf { it.prizeAmount.toDoubleOrNull() ?: 0.0 }
+                if (sum > 0) {
+                    String.format(Locale.US, "%.2f", sum)
+                } else {
+                    val allSum = state.winners.sumOf { it.prizeAmount.toDoubleOrNull() ?: 0.0 }
+                    if (allSum > 0) String.format(Locale.US, "%.2f", allSum) else "0.00"
+                }
+            } else {
+                amount
+            }
+        }
+    }
+
     when {
         isWinner -> {
             containerColor = Color(0xFFE8F5E9) // Verde suave
             contentColor = Color(0xFF2E7D32)   // Verde oscuro
             icon = Icons.Default.EmojiEvents
             title = "¡TICKET GANADOR!"
-            subtitle = "Monto a Pagar: RD$ ${state.totalReleased}"
+            subtitle = "RD$ $displayAmount"
         }
         status == "PAID" -> {
             containerColor = Color(0xFFE3F2FD) // Azul suave
             contentColor = Color(0xFF1565C0)   // Azul oscuro
             icon = Icons.Default.CheckCircle
             title = "TICKET PAGADO"
-            subtitle = "Monto entregado: RD$ ${state.totalReleased}"
+            subtitle = "RD$ $displayAmount"
         }
         status == "CANCELLED" -> {
             containerColor = Color(0xFFFFEBEE) // Rojo suave
@@ -229,25 +250,20 @@ private fun TicketStatusBanner(state: TicketDetailUiState) {
         colors = CardDefaults.cardColors(containerColor = containerColor),
         border = BorderStroke(1.dp, contentColor.copy(alpha = 0.3f))
     ) {
-        Row(
+        Column(
             modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(52.dp)
-                    .background(contentColor.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
-                contentAlignment = Alignment.Center
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
                     tint = contentColor,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(24.dp)
                 )
-            }
-            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
                     fontWeight = FontWeight.Bold,
@@ -255,15 +271,44 @@ private fun TicketStatusBanner(state: TicketDetailUiState) {
                     style = MaterialTheme.typography.titleMedium,
                     letterSpacing = 0.5.sp
                 )
-                subtitle?.let {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = it,
-                        fontWeight = if (isWinner || status == "PAID") FontWeight.Bold else FontWeight.Medium,
-                        color = contentColor.copy(alpha = 0.9f),
-                        style = if (isWinner || status == "PAID") MaterialTheme.typography.titleLarge else MaterialTheme.typography.bodyMedium,
-                        fontFamily = if (isWinner || status == "PAID") FontFamily.Monospace else FontFamily.Default
-                    )
+            }
+            
+            subtitle?.let { sub ->
+                HorizontalDivider(thickness = 0.5.dp, color = contentColor.copy(alpha = 0.2f))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val labelText = when {
+                        isWinner -> "Monto a pagar"
+                        status == "PAID" -> "Monto entregado"
+                        else -> ""
+                    }
+                    
+                    if (labelText.isNotBlank()) {
+                        Text(
+                            text = labelText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = contentColor.copy(alpha = 0.8f),
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = sub,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = contentColor,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    } else {
+                        Text(
+                            text = sub,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = contentColor.copy(alpha = 0.8f),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
         }
