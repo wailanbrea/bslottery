@@ -35,7 +35,7 @@
                         <th class="text-end">Acciones</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody x-data="{ openRule: null }">
                     @forelse ($rules as $rule)
                         <tr>
                             <td class="fw-semibold">{{ $rule->betType?->name ?: '—' }}</td>
@@ -46,6 +46,15 @@
                             <td><x-status-badge :status="$rule->status" /></td>
                             <td class="text-end">
                                 <div class="d-inline-flex gap-1">
+                                    <button
+                                        class="btn btn-sm btn-outline-secondary"
+                                        type="button"
+                                        @click="openRule = openRule === {{ $rule->id }} ? null : {{ $rule->id }}"
+                                        x-bind:aria-expanded="openRule === {{ $rule->id }} ? 'true' : 'false'"
+                                        aria-controls="payout-example-{{ $rule->id }}"
+                                        title="Ver ejemplo">
+                                        <i class="bi bi-question-circle"></i>
+                                    </button>
                                     @if (auth()->user()->hasPermission('payout_rules.update'))
                                         <a class="btn btn-sm btn-outline-primary" href="{{ route('admin.payout-rules.edit', $rule) }}">
                                             <i class="bi bi-pencil"></i>
@@ -59,6 +68,19 @@
                                             </button>
                                         </form>
                                     @endif
+                                </div>
+                            </td>
+                        </tr>
+                        <tr x-cloak x-show="openRule === {{ $rule->id }}" id="payout-example-{{ $rule->id }}">
+                            <td colspan="7" class="bg-light">
+                                <div class="p-3 small">
+                                    <div class="fw-semibold mb-2">Ejemplo de pago</div>
+                                    <div>{{ $rule->example['trigger'] }}</div>
+                                    <div class="text-secondary mt-1">{{ $rule->example['result'] }}</div>
+                                    @if (!empty($rule->example['note']))
+                                        <div class="text-warning mt-2">{{ $rule->example['note'] }}</div>
+                                    @endif
+                                    <div class="text-success fw-semibold mt-2">{{ $rule->example['payout'] }}</div>
                                 </div>
                             </td>
                         </tr>
