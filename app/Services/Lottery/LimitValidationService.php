@@ -12,6 +12,22 @@ use Illuminate\Support\Collection;
 
 class LimitValidationService
 {
+    public function normalizeNumber(string $number, string $betTypeCode): string
+    {
+        $code = strtoupper($betTypeCode);
+        if (in_array($code, ['PL', 'PALE', 'S', 'SUPER', 'SUPER_PALE'], true) && strlen($number) === 4) {
+            $parts = [substr($number, 0, 2), substr($number, 2, 2)];
+            sort($parts);
+            return implode('', $parts);
+        }
+        if (in_array($code, ['TRI', 'TRIPLETA'], true) && strlen($number) === 6) {
+            $parts = [substr($number, 0, 2), substr($number, 2, 2), substr($number, 4, 2)];
+            sort($parts);
+            return implode('', $parts);
+        }
+        return $number;
+    }
+
     /**
      * Valida que una jugada no exceda los límites configurados.
      *
@@ -20,6 +36,7 @@ class LimitValidationService
     public function validate(Branch $branch, Draw $draw, BetType $betType, string $numberValue, int|float|string $requestedAmount): array
     {
         $requestedAmount = Money::toFloat($requestedAmount);
+        $numberValue = $this->normalizeNumber($numberValue, $betType->code);
         $rules = $this->getApplicableRules($branch->company_id, $branch->id, $draw->lottery_id, $draw->id, $betType->id, $numberValue);
 
         if ($rules->isEmpty()) {
@@ -88,6 +105,7 @@ class LimitValidationService
      */
     public function getAvailableForNumber(Branch $branch, Draw $draw, BetType $betType, string $numberValue): ?float
     {
+        $numberValue = $this->normalizeNumber($numberValue, $betType->code);
         $rules = $this->getApplicableRules($branch->company_id, $branch->id, $draw->lottery_id, $draw->id, $betType->id, $numberValue);
 
         if ($rules->isEmpty()) {
@@ -173,6 +191,7 @@ class LimitValidationService
     public function consume(Branch $branch, Draw $draw, BetType $betType, string $numberValue, int|float|string $amount): void
     {
         $amount = Money::normalize($amount);
+        $numberValue = $this->normalizeNumber($numberValue, $betType->code);
 
         $existing = LimitConsumption::where('company_id', $branch->company_id)
             ->where('branch_id', $branch->id)

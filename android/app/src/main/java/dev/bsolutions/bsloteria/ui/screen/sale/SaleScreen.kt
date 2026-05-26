@@ -928,20 +928,17 @@ private fun KeypadPanel(
                 KeypadButton(
                     icon = Icons.AutoMirrored.Filled.Backspace,
                     iconTint = MaterialTheme.colorScheme.error,
-                    loading = state.preCheckLoading,
                     onClick = onBackspace,
                     modifier = Modifier.weight(1f)
                 )
                 KeypadButton(
                     text = "0",
-                    loading = state.preCheckLoading,
                     onClick = { onDigit("0") },
                     modifier = Modifier.weight(1f)
                 )
                 KeypadButton(
                     icon = if (showArrow) Icons.AutoMirrored.Filled.ArrowForward else Icons.Default.Add,
                     iconTint = primaryColor,
-                    loading = state.preCheckLoading,
                     onClick = onEnter,
                     modifier = Modifier.weight(1f)
                 )

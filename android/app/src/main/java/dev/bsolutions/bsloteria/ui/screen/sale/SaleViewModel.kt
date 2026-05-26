@@ -251,7 +251,7 @@ class SaleViewModel @Inject constructor(
 
     fun addJugada() {
         val s = _state.value
-        if (s.preCheckLoading || s.isLoading) return
+        if (s.isLoading) return
         if (s.selectedDrawIds.isEmpty()) { _state.update { it.copy(error = "Seleccione al menos un sorteo") }; return }
         if (s.numberInput.isBlank()) { _state.update { it.copy(error = "Ingrese un número") }; return }
         val amount = s.amountInput.toBigDecimalOrNull()?.setScale(2, RoundingMode.HALF_UP)
@@ -261,10 +261,13 @@ class SaleViewModel @Inject constructor(
 
         val activeDrawIds = s.selectedDrawIds.toList()
         val requestedAmount = amount.toDouble()
-        val numberValue = s.numberInput
+        val numberValue = normalizeNumber(s.numberInput, betType.code)
+
+        // Añadir al carrito inmediatamente (sincrónico) para UI responsiva e instantánea
+        addJugadasDirect(activeDrawIds, betType, numberValue, amount.toPlainString(), adjusted = false)
 
         viewModelScope.launch {
-            _state.update { it.copy(preCheckLoading = true, error = null) }
+            _state.update { it.copy(error = null) }
 
             val conflicts = resolveLimitConflicts(
                 drawIds = activeDrawIds,
@@ -273,38 +276,32 @@ class SaleViewModel @Inject constructor(
                 requestedAmount = requestedAmount,
             )
 
-            _state.update { it.copy(preCheckLoading = false) }
-
-            // Sin conflictos: anadir directo
-            if (conflicts.all { it.status == "ok" }) {
-                addJugadasDirect(activeDrawIds, betType, numberValue, amount.toPlainString(), adjusted = false)
-                return@launch
-            }
-
             // Con conflictos: abrir dialog
-            val decisions = conflicts.map { c ->
-                LimitConflictDecision(
-                    drawId = c.drawId,
-                    action = when (c.status) {
-                        "ok" -> "ok"
-                        "partial" -> "adjust"
-                        else -> "omit"
-                    }
-                )
-            }
-            _state.update {
-                it.copy(
-                    limitDialog = LimitDialogState(
-                        visible = true,
-                        numberValue = numberValue,
-                        betTypeId = betType.id,
-                        betTypeCode = betType.code,
-                        betTypeName = betType.name,
-                        requestedAmount = requestedAmount,
-                        conflicts = conflicts,
-                        decisions = decisions,
+            if (conflicts.any { it.status != "ok" }) {
+                val decisions = conflicts.map { c ->
+                    LimitConflictDecision(
+                        drawId = c.drawId,
+                        action = when (c.status) {
+                            "ok" -> "ok"
+                            "partial" -> "adjust"
+                            else -> "omit"
+                        }
                     )
-                )
+                }
+                _state.update {
+                    it.copy(
+                        limitDialog = LimitDialogState(
+                            visible = true,
+                            numberValue = numberValue,
+                            betTypeId = betType.id,
+                            betTypeCode = betType.code,
+                            betTypeName = betType.name,
+                            requestedAmount = requestedAmount,
+                            conflicts = conflicts,
+                            decisions = decisions,
+                        )
+                    )
+                }
             }
         }
     }
@@ -413,26 +410,41 @@ class SaleViewModel @Inject constructor(
             cancelLimitDialog(); return
         }
 
+        val merged = _state.value.jugadas.toMutableList()
+
         dialog.decisions.forEach { d ->
             val conflict = dialog.conflicts.firstOrNull { it.drawId == d.drawId } ?: return@forEach
-            val amount: Double = when (d.action) {
-                "ok" -> dialog.requestedAmount
-                "adjust" -> conflict.effective ?: return@forEach
-                else -> return@forEach
+            val existingIdx = merged.indexOfFirst {
+                it.drawId == d.drawId && it.betTypeId == dialog.betTypeId && it.numberValue == dialog.numberValue
             }
-            if (amount <= 0.0) return@forEach
 
-            val amountStr = BigDecimal(amount).setScale(2, RoundingMode.HALF_UP).toPlainString()
-            addJugadasDirect(
-                drawIds = listOf(d.drawId),
-                betType = betType,
-                numberValue = dialog.numberValue,
-                amount = amountStr,
-                adjusted = d.action == "adjust",
-            )
+            if (existingIdx >= 0) {
+                when (d.action) {
+                    "ok" -> {
+                        // Queda igual (monto completo)
+                    }
+                    "adjust" -> {
+                        val adjAmount = conflict.effective ?: 0.0
+                        if (adjAmount > 0.0) {
+                            val amountStr = BigDecimal(adjAmount).setScale(2, RoundingMode.HALF_UP).toPlainString()
+                            merged[existingIdx] = merged[existingIdx].copy(amount = amountStr, limitAdjusted = true)
+                        } else {
+                            merged.removeAt(existingIdx)
+                        }
+                    }
+                    "omit" -> {
+                        merged.removeAt(existingIdx)
+                    }
+                }
+            }
         }
 
-        _state.update { it.copy(limitDialog = LimitDialogState()) }
+        _state.update {
+            it.copy(
+                jugadas = merged,
+                limitDialog = LimitDialogState()
+            )
+        }
     }
 
     fun updateLimitDecision(drawId: Long, action: String) {
@@ -455,7 +467,28 @@ class SaleViewModel @Inject constructor(
     }
 
     fun cancelLimitDialog() {
-        _state.update { it.copy(limitDialog = LimitDialogState()) }
+        val dialog = _state.value.limitDialog
+        if (dialog.visible) {
+            val merged = _state.value.jugadas.toMutableList()
+            dialog.conflicts.forEach { c ->
+                if (c.status != "ok") {
+                    val existingIdx = merged.indexOfFirst {
+                        it.drawId == c.drawId && it.betTypeId == dialog.betTypeId && it.numberValue == dialog.numberValue
+                    }
+                    if (existingIdx >= 0) {
+                        merged.removeAt(existingIdx)
+                    }
+                }
+            }
+            _state.update {
+                it.copy(
+                    jugadas = merged,
+                    limitDialog = LimitDialogState()
+                )
+            }
+        } else {
+            _state.update { it.copy(limitDialog = LimitDialogState()) }
+        }
     }
 
     fun removeJugada(index: Int) {
@@ -808,6 +841,21 @@ class SaleViewModel @Inject constructor(
                 "%02d:%02d:%02d".format(h, m, sec)
             }
         } catch (_: Exception) { null }
+    }
+
+    private fun normalizeNumber(number: String, betTypeCode: String): String {
+        val code = betTypeCode.uppercase()
+        if ((code == "PL" || code == "PALE" || code == "S" || code == "SUPER" || code == "SUPER_PALE") && number.length == 4) {
+            val parts = arrayOf(number.substring(0, 2), number.substring(2, 4))
+            parts.sort()
+            return parts.joinToString("")
+        }
+        if ((code == "TRI" || code == "TRIPLETA") && number.length == 6) {
+            val parts = arrayOf(number.substring(0, 2), number.substring(2, 4), number.substring(4, 6))
+            parts.sort()
+            return parts.joinToString("")
+        }
+        return number
     }
 
     // ── Private helpers ─────────────────────────────────────────────────────────
