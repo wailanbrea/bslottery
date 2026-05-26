@@ -212,11 +212,19 @@ class MobileController extends Controller
     public function lookupTicket(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'token' => 'required|string|max:120',
+            'token' => 'required|string|max:255',
         ]);
 
         $user = $request->user();
         $token = trim($data['token']);
+
+        // Si es una URL completa, extraer el UUID/segmento final
+        if (filter_var($token, FILTER_VALIDATE_URL) || str_starts_with($token, 'http://') || str_starts_with($token, 'https://')) {
+            $path = parse_url($token, PHP_URL_PATH);
+            $segments = explode('/', trim($path, '/'));
+            $token = end($segments);
+        }
+
         $normalized = str_starts_with($token, 'ticket:') ? substr($token, 7) : $token;
 
         $ticket = Ticket::query()

@@ -64,12 +64,53 @@ class TicketRepository @Inject constructor(
         }
     }
 
+    private fun extractTokenUuid(input: String): String {
+        val trimmed = input.trim()
+        if (trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)) {
+            val parts = trimmed.split("/")
+            val cleanParts = parts.filter { it.isNotBlank() }
+            if (cleanParts.isNotEmpty()) {
+                var lastPart = cleanParts.last()
+                val qIdx = lastPart.indexOf('?')
+                if (qIdx != -1) {
+                    lastPart = lastPart.substring(0, qIdx)
+                }
+                val hIdx = lastPart.indexOf('#')
+                if (hIdx != -1) {
+                    lastPart = lastPart.substring(0, hIdx)
+                }
+                return lastPart
+            }
+        }
+        if (trimmed.startsWith("ticket:", ignoreCase = true)) {
+            return trimmed.substring(7)
+        }
+        return trimmed
+    }
+
     suspend fun lookupTicket(token: String): Result<String> {
-        val cleanToken = token.trim()
+        val cleanToken = extractTokenUuid(token)
         if (cleanToken.isBlank()) {
             return Result.Error("Ingrese numero de ticket o QR")
         }
 
+        // 1. Intentar buscar localmente primero para rapidez y funcionamiento offline
+        val localByUuid = ticketDao.findByUuid(cleanToken)
+        if (localByUuid != null) {
+            return Result.Success(localByUuid.uuid)
+        }
+
+        val localOffline = ticketDao.findOfflineByUuid(cleanToken)
+        if (localOffline != null) {
+            return Result.Success(localOffline.uuid)
+        }
+
+        val localByNumber = ticketDao.findByTicketNumber(cleanToken)
+        if (localByNumber != null) {
+            return Result.Success(localByNumber.uuid)
+        }
+
+        // 2. Si no se encuentra localmente, buscar en el servidor
         return try {
             val response = api.lookupTicket(cleanToken)
             if (!response.isSuccessful) {

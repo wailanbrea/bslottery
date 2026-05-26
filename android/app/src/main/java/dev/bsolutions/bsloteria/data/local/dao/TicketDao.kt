@@ -18,6 +18,9 @@ interface TicketDao {
     @Query("SELECT * FROM tickets WHERE uuid = :uuid")
     suspend fun findByUuid(uuid: String): TicketEntity?
 
+    @Query("SELECT * FROM tickets WHERE ticketNumber = :ticketNumber")
+    suspend fun findByTicketNumber(ticketNumber: String): TicketEntity?
+
     @Query("SELECT * FROM ticket_details WHERE ticketId = :ticketId")
     suspend fun findDetailsByTicketId(ticketId: Long): List<TicketDetailEntity>
 
