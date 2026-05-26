@@ -154,8 +154,10 @@ class MobileController extends Controller
         $user = $request->user();
         $this->drawGenerationService->generateForCompany((int) $user->company_id, days: 2);
 
-        $nowTime = now()->format('H:i:s');
-        $today = now()->toDateString();
+        $timezone = $user->company?->timezone ?: config('app.timezone', 'America/Santo_Domingo');
+        $now = now($timezone);
+        $nowTime = $now->format('H:i:s');
+        $today = $now->toDateString();
 
         $draws = Draw::where('company_id', $user->company_id)
             ->where('status', 'OPEN')
@@ -179,6 +181,7 @@ class MobileController extends Controller
                 'lottery_name' => $d->lottery->name ?? '',
                 'name' => $d->name,
                 'draw_date' => $d->draw_date?->toDateString(),
+                'open_time' => $d->open_time ? substr((string) $d->open_time, 0, 5) : null,
                 'draw_time' => substr((string) $d->scheduled_time, 0, 5),
                 'status' => $d->status,
                 'cutoff_time' => substr((string) $d->close_time, 0, 5),

@@ -10,6 +10,7 @@ data class DrawEntity(
     val lotteryName: String,
     val name: String,
     val drawDate: String,
+    val openTime: String?,
     val drawTime: String,
     val status: String,
     val cutoffTime: String?,

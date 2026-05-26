@@ -10,6 +10,7 @@ import dev.bsolutions.bsloteria.data.local.entity.OfflineTicketEntity
 import dev.bsolutions.bsloteria.data.local.entity.TicketDetailEntity
 import dev.bsolutions.bsloteria.data.local.entity.TicketEntity
 import dev.bsolutions.bsloteria.data.remote.ApiService
+import dev.bsolutions.bsloteria.data.remote.dto.ApiError
 import dev.bsolutions.bsloteria.data.remote.dto.CheckLimitResponse
 import dev.bsolutions.bsloteria.data.remote.dto.OfflineDetailRequest
 import dev.bsolutions.bsloteria.data.remote.dto.OfflineTicketRequest
@@ -39,6 +40,7 @@ class TicketRepository @Inject constructor(
     private val offlineRepository: OfflineRepository
 ) {
     private val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
+    private val apiErrorAdapter = moshi.adapter(ApiError::class.java)
 
     fun observeRecentTickets() = ticketDao.observeRecent()
     fun observePendingCount(): Flow<Int> = ticketDao.observePendingCount()
@@ -141,7 +143,7 @@ class TicketRepository @Inject constructor(
             } else if (response.code() >= 500 || response.code() == 408) {
                 queueOffline(offlineTicket, details, "Servidor no disponible (${response.code()})")
             } else {
-                Result.Error("Venta rechazada por servidor: ${response.code()}")
+                Result.Error(extractApiErrorMessage(response) ?: "Venta rechazada por servidor: ${response.code()}")
             }
         } catch (e: IOException) {
             queueOffline(offlineTicket, details, e.localizedMessage ?: "Sin conexión")
@@ -201,6 +203,16 @@ class TicketRepository @Inject constructor(
     ): Result<String> {
         Timber.w("Queueing ticket ${ticket.uuid} offline: $reason")
         return offlineRepository.queueOfflineTicket(ticket, details)
+    }
+
+    private fun extractApiErrorMessage(response: retrofit2.Response<*>): String? {
+        return try {
+            val raw = response.errorBody()?.string()?.trim()
+            if (raw.isNullOrBlank()) return null
+            apiErrorAdapter.fromJson(raw)?.message?.takeIf { it.isNotBlank() }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     /**

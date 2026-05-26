@@ -53,7 +53,7 @@ class SyncRepository @Inject constructor(
 
             drawDao.upsertAll(
                 body.draws.map { d ->
-                    DrawEntity(d.id, d.lotteryId, d.lotteryName, d.name, d.drawDate, d.drawTime, d.status, d.cutoffTime, syncedAt = syncStart)
+                    DrawEntity(d.id, d.lotteryId, d.lotteryName, d.name, d.drawDate, d.openTime, d.drawTime, d.status, d.cutoffTime, syncedAt = syncStart)
                 },
             )
             drawDao.deleteStaleDraws(syncStart)

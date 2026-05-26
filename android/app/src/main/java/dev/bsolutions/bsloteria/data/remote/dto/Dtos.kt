@@ -54,6 +54,7 @@ data class DrawDto(
     @Json(name = "lottery_name") val lotteryName: String,
     val name: String,
     @Json(name = "draw_date") val drawDate: String,
+    @Json(name = "open_time") val openTime: String?,
     @Json(name = "draw_time") val drawTime: String,
     val status: String,
     @Json(name = "cutoff_time") val cutoffTime: String?

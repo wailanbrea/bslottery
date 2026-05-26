@@ -10,6 +10,7 @@ interface DrawDao {
         SELECT * FROM draws
         WHERE status = 'OPEN'
           AND drawDate = :today
+          AND (openTime IS NULL OR openTime <= :nowTime)
           AND (cutoffTime IS NULL OR cutoffTime > :nowTime)
         ORDER BY drawTime ASC
     """)
