@@ -26,17 +26,40 @@ class CashController extends Controller
         Gate::authorize('viewAny', CashSession::class);
 
         $companyId = session('active_company_id');
-        $branchId = session('active_branch_id');
+        $canViewCompanyWide = $this->canViewCompanyWide();
+        $selectedBranchId = $canViewCompanyWide
+            ? ($request->integer('branch_id') ?: null)
+            : session('active_branch_id');
+        $selectedStatus = strtoupper((string) $request->query('status', ''));
 
         $sessions = CashSession::with(['user', 'branch', 'openedBy', 'closedBy', 'reconciliation.denominations'])
-            ->withCount(['incidents' => fn ($q) => $q->where('status', 'OPEN')])
+            ->withCount([
+                'incidents' => fn ($q) => $q->where('status', 'OPEN'),
+                'movements',
+                'tickets',
+            ])
             ->where('company_id', $companyId)
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->orderBy('opened_at', 'desc')
+            ->when($selectedBranchId, fn ($q) => $q->where('branch_id', $selectedBranchId))
+            ->when(
+                in_array($selectedStatus, ['OPEN', 'CLOSED', 'CONFIRMED', 'REOPENED'], true),
+                fn ($q) => $q->where('status', $selectedStatus)
+            )
+            ->orderByRaw("CASE WHEN status IN ('OPEN', 'REOPENED') THEN 0 ELSE 1 END")
+            ->orderByDesc('opened_at')
             ->paginate(20)
             ->appends($request->query());
 
-        return view('admin.cash.index', compact('sessions'));
+        $branches = $canViewCompanyWide
+            ? Branch::where('company_id', $companyId)->orderBy('name')->get()
+            : collect();
+
+        return view('admin.cash.index', compact(
+            'sessions',
+            'branches',
+            'canViewCompanyWide',
+            'selectedBranchId',
+            'selectedStatus',
+        ));
     }
 
     public function current(): View|RedirectResponse
@@ -59,6 +82,29 @@ class CashController extends Controller
         $session->load(['movements' => fn ($q) => $q->orderBy('created_at', 'desc')->limit(50)]);
 
         return view('admin.cash.current', compact('session'));
+    }
+
+    public function show(CashSession $session): View
+    {
+        Gate::authorize('view', $session);
+        $this->ensureSessionScope($session);
+
+        $session->load(['branch', 'user', 'openedBy', 'closedBy', 'confirmedBy', 'reconciliation.denominations']);
+        $session->refresh();
+        $session->recalculateExpectedCash();
+
+        $movements = $session->movements()
+            ->with('user')
+            ->orderByDesc('created_at')
+            ->paginate(25, ['*'], 'movements_page');
+
+        $tickets = $session->tickets()
+            ->with('user')
+            ->orderByDesc('sold_at')
+            ->orderByDesc('id')
+            ->paginate(25, ['*'], 'tickets_page');
+
+        return view('admin.cash.show', compact('session', 'movements', 'tickets'));
     }
 
     public function openForm(): View
@@ -218,6 +264,7 @@ class CashController extends Controller
     public function confirm(CashSession $session): RedirectResponse
     {
         Gate::authorize('update', $session);
+        $this->ensureSessionScope($session);
 
         try {
             $this->cashService->confirm($session, auth()->user());
@@ -238,6 +285,7 @@ class CashController extends Controller
     public function reopen(CashSession $session): RedirectResponse
     {
         Gate::authorize('update', $session);
+        $this->ensureSessionScope($session);
 
         try {
             $this->cashService->reopen($session, auth()->user(), 'Reapertura autorizada.');
@@ -252,6 +300,24 @@ class CashController extends Controller
             return redirect()->route('admin.cash.index')->with('status', 'Caja reabierta.');
         } catch (\RuntimeException $e) {
             return back()->withErrors($e->getMessage());
+        }
+    }
+
+    private function canViewCompanyWide(): bool
+    {
+        $user = auth()->user();
+
+        return $user->isSuperAdmin() || $user->hasPermission('branches.view');
+    }
+
+    private function ensureSessionScope(CashSession $session): void
+    {
+        abort_unless($session->company_id === session('active_company_id'), 404);
+
+        $activeBranchId = session('active_branch_id');
+
+        if (! $this->canViewCompanyWide() && $activeBranchId) {
+            abort_unless($session->branch_id === $activeBranchId, 404);
         }
     }
 }

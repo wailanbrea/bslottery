@@ -198,12 +198,6 @@ Route::middleware(['auth', 'active.context'])
         Route::post('cash/close', [CashController::class, 'close'])
             ->middleware('permission:cash.close')
             ->name('cash.close.store');
-        Route::post('cash/{session}/confirm', [CashController::class, 'confirm'])
-            ->middleware('permission:cash.confirm')
-            ->name('cash.confirm');
-        Route::post('cash/{session}/reopen', [CashController::class, 'reopen'])
-            ->middleware('permission:cash.reopen')
-            ->name('cash.reopen');
         Route::get('cash/transfers', [BankTransferController::class, 'index'])
             ->middleware('permission:cash.transfers.view')
             ->name('cash.transfers.index');
@@ -239,6 +233,15 @@ Route::middleware(['auth', 'active.context'])
             ->name('cash.incidents.dismiss');
 
         // Fase 3 â€” Contabilidad
+        Route::get('cash/{session}', [CashController::class, 'show'])
+            ->middleware('permission:cash.view')
+            ->name('cash.show');
+        Route::post('cash/{session}/confirm', [CashController::class, 'confirm'])
+            ->middleware('permission:cash.confirm')
+            ->name('cash.confirm');
+        Route::post('cash/{session}/reopen', [CashController::class, 'reopen'])
+            ->middleware('permission:cash.reopen')
+            ->name('cash.reopen');
         Route::get('accounting/accounts', [AccountingController::class, 'accounts'])
             ->middleware('permission:accounting.view')
             ->name('accounting.accounts');
@@ -460,4 +463,3 @@ Route::middleware(['auth', 'active.context'])
             ->middleware('permission:payroll.manage')
             ->name('payroll.detail.update');
     });
-

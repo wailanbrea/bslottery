@@ -6,6 +6,7 @@ use App\Models\AccountingAccount;
 use App\Models\Branch;
 use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
+use App\Support\Accounting\DefaultChartOfAccounts;
 use App\Models\User;
 use App\Support\Money;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,8 @@ class AccountingService
     public function createEntry(int $companyId, ?int $branchId, string $description, array $lines, User $createdBy, ?string $sourceType = null, ?int $sourceId = null): JournalEntry
     {
         return DB::transaction(function () use ($companyId, $branchId, $description, $lines, $createdBy, $sourceType, $sourceId): JournalEntry {
+            $this->ensureDefaultAccounts($companyId);
+
             $entryNumber = $this->generateEntryNumber($companyId);
 
             $entry = JournalEntry::create([
@@ -171,5 +174,22 @@ class AccountingService
             ->count();
 
         return sprintf('JE-%s-%04d', $prefix, $count + 1);
+    }
+
+    private function ensureDefaultAccounts(int $companyId): void
+    {
+        foreach (DefaultChartOfAccounts::definitions() as $definition) {
+            AccountingAccount::query()->firstOrCreate(
+                [
+                    'company_id' => $companyId,
+                    'code' => $definition['code'],
+                ],
+                [
+                    'name' => $definition['name'],
+                    'type' => $definition['type'],
+                    'status' => 'ACTIVE',
+                ]
+            );
+        }
     }
 }

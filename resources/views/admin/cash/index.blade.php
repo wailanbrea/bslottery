@@ -4,7 +4,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1 class="h4 mb-1"><i class="bi bi-cash-register me-2" style="color: var(--argon-success);"></i>Caja</h1>
-            <p class="text-secondary mb-0">Sesiones de caja por sucursal.</p>
+            <p class="text-secondary mb-0">Sesiones de caja y actividad operativa por sucursal.</p>
         </div>
         <div class="d-flex gap-2">
             @if (auth()->user()?->hasPermission('cash.funding.view'))
@@ -30,7 +30,7 @@
             </div>
             <div class="small">
                 Esperado: <strong>RD$ {{ number_format((float) $summary['expected_cash'], 2) }}</strong>
-                | Contado físico: <strong>RD$ {{ number_format((float) $summary['counted_cash'], 2) }}</strong>
+                | Contado fisico: <strong>RD$ {{ number_format((float) $summary['counted_cash'], 2) }}</strong>
                 | Diferencia: <strong>{{ $difference >= 0 ? '+' : '-' }}RD$ {{ number_format(abs($difference), 2) }}</strong>
                 @if ((float) $summary['shortage_amount'] > 0)
                     | Faltante: <strong>RD$ {{ number_format((float) $summary['shortage_amount'], 2) }}</strong>
@@ -41,6 +41,43 @@
             </div>
         </div>
     @endif
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <form class="row g-3 align-items-end" method="GET" action="{{ route('admin.cash.index') }}">
+                @if ($canViewCompanyWide)
+                    <div class="col-md-4">
+                        <label class="form-label" for="branch_id">Sucursal</label>
+                        <select class="form-select" id="branch_id" name="branch_id">
+                            <option value="">Todas</option>
+                            @foreach ($branches as $branch)
+                                <option value="{{ $branch->id }}" @selected($selectedBranchId === $branch->id)>{{ $branch->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                @endif
+                <div class="col-md-3">
+                    <label class="form-label" for="status">Estado</label>
+                    <select class="form-select" id="status" name="status">
+                        <option value="">Todos</option>
+                        @foreach (['OPEN' => 'Abierta', 'REOPENED' => 'Reabierta', 'CLOSED' => 'Cerrada', 'CONFIRMED' => 'Confirmada'] as $value => $label)
+                            <option value="{{ $value }}" @selected($selectedStatus === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-auto">
+                    <button class="btn btn-outline-primary" type="submit">
+                        <i class="bi bi-funnel me-1"></i>Filtrar
+                    </button>
+                </div>
+                <div class="col-md-auto">
+                    <a class="btn btn-outline-secondary" href="{{ route('admin.cash.index') }}">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Limpiar
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <div class="card">
         <div class="table-responsive">
@@ -55,6 +92,7 @@
                         <th>Esperado</th>
                         <th>Contado</th>
                         <th>Diferencia</th>
+                        <th>Actividad</th>
                         <th>Estado</th>
                         <th class="text-end">Acciones</th>
                     </tr>
@@ -104,6 +142,10 @@
                                 @endif
                             </td>
                             <td>
+                                <div class="small">Ventas: <strong>RD$ {{ number_format($session->sales_total, 2) }}</strong></div>
+                                <div class="small text-secondary">Tickets: {{ $session->tickets_count }} | Movs.: {{ $session->movements_count }}</div>
+                            </td>
+                            <td>
                                 <x-status-badge :status="$session->status" />
                                 @if ($session->reconciliation)
                                     <div class="small text-secondary mt-1">Arqueo: <x-status-badge :status="$session->reconciliation->status" /></div>
@@ -113,8 +155,11 @@
                                 @endif
                             </td>
                             <td class="text-end">
+                                <a class="btn btn-sm btn-outline-primary" href="{{ route('admin.cash.show', $session) }}">
+                                    <i class="bi bi-eye me-1"></i>Detalle
+                                </a>
                                 @if ($session->status === 'CLOSED' && auth()->user()->hasPermission('cash.confirm'))
-                                    <form method="POST" action="{{ route('admin.cash.confirm', $session) }}" class="d-inline" onsubmit="return confirm('¿Confirmar el cierre de esta caja?')">
+                                    <form method="POST" action="{{ route('admin.cash.confirm', $session) }}" class="d-inline" onsubmit="return confirm('Confirmar el cierre de esta caja?')">
                                         @csrf
                                         <button class="btn btn-sm btn-outline-success" type="submit">
                                             <i class="bi bi-check-lg me-1"></i>Confirmar
@@ -122,7 +167,7 @@
                                     </form>
                                 @endif
                                 @if (in_array($session->status, ['CLOSED', 'CONFIRMED'], true) && auth()->user()->hasPermission('cash.reopen'))
-                                    <form method="POST" action="{{ route('admin.cash.reopen', $session) }}" class="d-inline" onsubmit="return confirm('¿Reabrir esta caja?')">
+                                    <form method="POST" action="{{ route('admin.cash.reopen', $session) }}" class="d-inline" onsubmit="return confirm('Reabrir esta caja?')">
                                         @csrf
                                         <button class="btn btn-sm btn-outline-warning" type="submit">
                                             <i class="bi bi-arrow-repeat me-1"></i>Reabrir
@@ -132,7 +177,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="10" class="text-center text-secondary py-4">No hay sesiones de caja registradas.</td></tr>
+                        <tr><td colspan="11" class="text-center text-secondary py-4">No hay sesiones de caja registradas.</td></tr>
                     @endforelse
                 </tbody>
             </table>
