@@ -130,6 +130,11 @@ class LotteryController extends Controller
         }
 
         $statusLabel = $data['status'] === 'ACTIVE' ? 'abiertas' : 'cerradas';
+        $yaTodas    = $data['status'] === 'ACTIVE' ? 'ya estaban abiertas' : 'ya estaban cerradas';
+
+        if ($updated === 0) {
+            return redirect()->route('admin.lotteries.index')->with('status', "Sin cambios: todas las loterias {$yaTodas}.");
+        }
 
         app(AuditService::class)->record(
             module: 'Lottery',
