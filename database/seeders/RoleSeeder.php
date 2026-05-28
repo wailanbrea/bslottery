@@ -79,6 +79,7 @@ class RoleSeeder extends Seeder
                 'lotteries.view',
                 'lotteries.create',
                 'lotteries.update',
+                'lotteries.toggle',
                 'draws.view',
                 'draws.create',
                 'draws.update',

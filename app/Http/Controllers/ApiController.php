@@ -106,6 +106,7 @@ class ApiController extends Controller
         $companyId = $this->resolveCompanyId();
         $draws = Draw::with('lottery')
             ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
+            ->whereHas('lottery', fn ($q) => $q->where('status', 'ACTIVE'))
             ->where('draw_date', '>=', now()->toDateString())
             ->orderBy('draw_date')
             ->orderBy('scheduled_time')

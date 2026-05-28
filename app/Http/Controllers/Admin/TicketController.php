@@ -66,6 +66,7 @@ class TicketController extends Controller
         $draws = Draw::with('lottery')
             ->where('company_id', $companyId)
             ->where('status', 'OPEN')
+            ->whereHas('lottery', fn ($q) => $q->where('status', 'ACTIVE'))
             ->whereDate('draw_date', now()->toDateString())
             ->orderBy('draw_date')
             ->orderBy('scheduled_time')

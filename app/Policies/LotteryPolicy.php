@@ -29,6 +29,17 @@ class LotteryPolicy
             && $user->hasPermission('lotteries.update');
     }
 
+    public function toggle(User $user, Lottery $lottery): bool
+    {
+        return $this->belongsToUserCompany($user, $lottery)
+            && $user->hasPermission('lotteries.toggle');
+    }
+
+    public function toggleAny(User $user): bool
+    {
+        return $user->hasPermission('lotteries.toggle');
+    }
+
     protected function belongsToUserCompany(User $user, Lottery $lottery): bool
     {
         if ($user->isSuperAdmin()) {

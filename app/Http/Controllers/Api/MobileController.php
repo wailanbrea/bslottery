@@ -161,6 +161,7 @@ class MobileController extends Controller
 
         $draws = Draw::where('company_id', $user->company_id)
             ->where('status', 'OPEN')
+            ->whereHas('lottery', fn ($q) => $q->where('status', 'ACTIVE'))
             ->whereDate('draw_date', '>=', $today)
             ->where(function ($q) use ($today, $nowTime): void {
                 // Sorteos de hoy: solo los que aún no han cerrado

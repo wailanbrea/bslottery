@@ -80,4 +80,68 @@ class LotteryController extends Controller
 
         return redirect()->route('admin.lotteries.index')->with('status', 'Lotería actualizada.');
     }
+
+    public function updateStatus(Request $request, Lottery $lottery): RedirectResponse
+    {
+        Gate::authorize('toggle', $lottery);
+
+        $data = $request->validate([
+            'status' => 'required|in:ACTIVE,INACTIVE',
+        ]);
+
+        $oldValues = $lottery->toArray();
+        $lottery->update(['status' => $data['status']]);
+
+        $statusLabel = $data['status'] === 'ACTIVE' ? 'abierta' : 'cerrada';
+
+        app(AuditService::class)->record(
+            module: 'Lottery',
+            action: 'status_updated',
+            auditable: $lottery,
+            description: "Loteria {$lottery->name} {$statusLabel}.",
+            oldValues: $oldValues,
+            newValues: $lottery->toArray(),
+        );
+
+        return redirect()->route('admin.lotteries.index')->with('status', "Loteria {$lottery->name} {$statusLabel}.");
+    }
+
+    public function bulkUpdateStatus(Request $request): RedirectResponse
+    {
+        Gate::authorize('toggleAny', Lottery::class);
+
+        $data = $request->validate([
+            'status' => 'required|in:ACTIVE,INACTIVE',
+        ]);
+
+        $companyId = session('active_company_id');
+
+        $query = Lottery::query()
+            ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
+            ->where('status', '!=', $data['status']);
+
+        $lotteryIds = $query->pluck('id');
+        $updated = 0;
+
+        if ($lotteryIds->isNotEmpty()) {
+            $updated = Lottery::query()
+                ->whereIn('id', $lotteryIds)
+                ->update(['status' => $data['status']]);
+        }
+
+        $statusLabel = $data['status'] === 'ACTIVE' ? 'abiertas' : 'cerradas';
+
+        app(AuditService::class)->record(
+            module: 'Lottery',
+            action: 'bulk_status_updated',
+            description: "{$updated} loterias {$statusLabel} en lote.",
+            newValues: [
+                'status' => $data['status'],
+                'lotteries_updated' => $lotteryIds->all(),
+                'count' => $updated,
+            ],
+        );
+
+        return redirect()->route('admin.lotteries.index')->with('status', "{$updated} loterias {$statusLabel}.");
+    }
 }

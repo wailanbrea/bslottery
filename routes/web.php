@@ -122,6 +122,12 @@ Route::middleware(['auth', 'active.context'])
             ->name('notifications.read');
 
         // Fase 2 â€” CatÃ¡logos de loterÃ­a
+        Route::post('lotteries/bulk-status', [LotteryController::class, 'bulkUpdateStatus'])
+            ->middleware('permission:lotteries.toggle')
+            ->name('lotteries.bulk-status');
+        Route::post('lotteries/{lottery}/status', [LotteryController::class, 'updateStatus'])
+            ->middleware('permission:lotteries.toggle')
+            ->name('lotteries.status');
         Route::resource('lotteries', LotteryController::class)
             ->except(['show', 'destroy'])
             ->middlewareFor('index', 'permission:lotteries.view')
