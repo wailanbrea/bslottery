@@ -41,7 +41,7 @@ class PrintJobController extends Controller
             })
             ->update([
                 'status' => 'FAILED',
-                'error_message' => 'Tiempo de confirmacion agotado en QZ Tray.',
+                'error_message' => 'Tiempo de confirmacion agotado.',
                 'updated_at' => now(),
             ]);
 

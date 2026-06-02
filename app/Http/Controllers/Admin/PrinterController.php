@@ -29,10 +29,7 @@ class PrinterController extends Controller
             ->orderBy('name')
             ->paginate(20);
 
-        $qzSilentReady = is_file((string) config('print.qz_digital_certificate_path'))
-            && is_file((string) config('print.qz_private_key_path'));
-
-        return view('admin.printers.index', compact('printers', 'qzSilentReady'));
+        return view('admin.printers.index', compact('printers'));
     }
 
     public function create(): View
@@ -55,7 +52,7 @@ class PrinterController extends Controller
             'terminal_name' => 'nullable|string|max:150',
             'name' => 'required|string|max:150',
             'printer_type' => 'required|in:THERMAL,NORMAL',
-            'connection_type' => 'required|in:USB,NETWORK,WINDOWS_SHARED,BLUETOOTH,QZ_TRAY,PRINT_CONNECTOR',
+            'connection_type' => 'required|in:USB,NETWORK,WINDOWS_SHARED,BLUETOOTH,PRINT_CONNECTOR',
             'paper_width' => 'required|in:58MM,80MM,88MM',
             'printing_mode' => 'nullable|in:RAW_ESCPOS',
             'auto_cut' => 'nullable|boolean',
@@ -98,7 +95,7 @@ class PrinterController extends Controller
             'terminal_name' => 'nullable|string|max:150',
             'name' => 'required|string|max:150',
             'printer_type' => 'required|in:THERMAL,NORMAL',
-            'connection_type' => 'required|in:USB,NETWORK,WINDOWS_SHARED,BLUETOOTH,QZ_TRAY,PRINT_CONNECTOR',
+            'connection_type' => 'required|in:USB,NETWORK,WINDOWS_SHARED,BLUETOOTH,PRINT_CONNECTOR',
             'paper_width' => 'required|in:58MM,80MM,88MM',
             'printing_mode' => 'nullable|in:RAW_ESCPOS',
             'auto_cut' => 'nullable|boolean',
@@ -143,151 +140,28 @@ class PrinterController extends Controller
         return redirect()->route('admin.printers.index')->with('status', "Prueba enviada a {$printer->name}. Job #{$job->id}");
     }
 
-    public function startAgent(Request $request): JsonResponse
+
+    public function downloadConnectorInstallScript(): Response
     {
         Gate::authorize('create', PrinterConfig::class);
 
-        $agentUrl = (string) config('print.agent_url', 'http://127.0.0.1:8765');
-        if ($this->agentReachable($agentUrl)) {
-            return $this->buildAgentStartResponse($agentUrl, true);
-        }
-
-        return response()->json([
-            'success' => false,
-            'agent_running' => false,
-            'ready' => false,
-            'message' => 'El Print Agent no esta activo. Ejecuta el launcher descargable para iniciarlo, diagnosticar Windows y dejarlo listo.',
-        ], 422);
-    }
-
-    public function downloadAgentScript(): Response
-    {
-        Gate::authorize('create', PrinterConfig::class);
-
-        $path = public_path('downloads/scritplottery.ps1');
-        abort_unless(is_file($path), 404);
-
-        $content = file_get_contents($path);
-        abort_unless(is_string($content), 500);
-
-        $token = str_replace("'", "''", (string) config('print.agent_token', ''));
-        $content = str_replace('__BSLOTTERY_AGENT_TOKEN__', $token, $content);
-
-        return response($content, 200, [
-            'Content-Type' => 'text/plain; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="scritplottery.ps1"',
-        ]);
-    }
-
-    public function downloadAgentLauncher(): Response
-    {
-        Gate::authorize('create', PrinterConfig::class);
+        $url = asset('downloads/BSolutionsPrintConnectorSetup.exe');
 
         $content = "@echo off\r\n"
             ."setlocal\r\n"
-            .'set "SCRIPT_DIR=%~dp0"'."\r\n"
-            .'powershell.exe -NoExit -ExecutionPolicy Bypass -File "%SCRIPT_DIR%scritplottery.ps1" -Port 8765'."\r\n"
-            ."endlocal\r\n";
+            .'set "URL='.$url.'"'."\r\n"
+            .'set "DEST=%TEMP%\BSolutionsPrintConnectorSetup.exe"'."\r\n"
+            ."echo Descargando BSolutions Print Connector...\r\n"
+            .'powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri \'%URL%\' -OutFile \'%DEST%\' -UseBasicParsing"'."\r\n"
+            ."echo Instalando...\r\n"
+            .'"%DEST%" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART'."\r\n"
+            .'del "%DEST%" >nul 2>&1'."\r\n"
+            ."echo Listo. Abre BSolutions Print Connector desde el menu inicio.\r\n"
+            ."pause\r\n";
 
         return response($content, 200, [
             'Content-Type' => 'text/plain; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="start-scritplottery.bat"',
+            'Content-Disposition' => 'attachment; filename="instalar-print-connector.bat"',
         ]);
-    }
-
-    private function agentReachable(string $agentUrl): bool
-    {
-        $host = (string) (parse_url($agentUrl, PHP_URL_HOST) ?: '127.0.0.1');
-        $port = (int) (parse_url($agentUrl, PHP_URL_PORT) ?: 8765);
-
-        $socket = @fsockopen($host, $port, $errno, $errstr, 1.0);
-        if (! $socket) {
-            return false;
-        }
-
-        fclose($socket);
-
-        return true;
-    }
-
-    private function buildAgentStartResponse(string $agentUrl, bool $alreadyRunning): JsonResponse
-    {
-        $diagnostics = $this->agentPrinterDiagnostics($agentUrl);
-
-        if (! $diagnostics['ok']) {
-            return response()->json([
-                'success' => false,
-                'already_running' => $alreadyRunning,
-                'agent_running' => true,
-                'ready' => false,
-                'message' => $diagnostics['message'],
-            ], 422);
-        }
-
-        return response()->json([
-            'success' => true,
-            'already_running' => $alreadyRunning,
-            'agent_running' => true,
-            'ready' => true,
-            'message' => $diagnostics['message'],
-            'printers_count' => $diagnostics['printers_count'],
-        ]);
-    }
-
-    private function agentPrinterDiagnostics(string $agentUrl): array
-    {
-        $token = (string) config('print.agent_token', '');
-        $options = [
-            'http' => [
-                'method' => 'GET',
-                'timeout' => 3,
-                'ignore_errors' => true,
-                'header' => implode("\r\n", array_filter([
-                    'Accept: application/json',
-                    $token !== '' ? 'Authorization: Bearer '.$token : null,
-                ])),
-            ],
-        ];
-
-        try {
-            $context = stream_context_create($options);
-            $body = @file_get_contents(rtrim($agentUrl, '/').'/api/printers', false, $context);
-            $payload = is_string($body) ? json_decode($body, true) : null;
-        } catch (Throwable) {
-            $payload = null;
-        }
-
-        if (! is_array($payload)) {
-            return [
-                'ok' => false,
-                'message' => 'El Print Agent inicio, pero no devolvio una respuesta valida al consultar impresoras.',
-                'printers_count' => 0,
-            ];
-        }
-
-        $printers = $payload['printers'] ?? [];
-        $error = trim((string) ($payload['error'] ?? ''));
-
-        if ($error !== '') {
-            return [
-                'ok' => false,
-                'message' => 'El Print Agent inicio, pero no puede listar impresoras: '.$error,
-                'printers_count' => is_array($printers) ? count($printers) : 0,
-            ];
-        }
-
-        if (! is_array($printers) || count($printers) === 0) {
-            return [
-                'ok' => false,
-                'message' => 'El Print Agent inicio, pero no encontro impresoras en Windows.',
-                'printers_count' => 0,
-            ];
-        }
-
-        return [
-            'ok' => true,
-            'message' => 'Print Agent listo. Impresoras detectadas: '.count($printers).'.',
-            'printers_count' => count($printers),
-        ];
     }
 }

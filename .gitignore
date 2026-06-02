@@ -51,3 +51,6 @@ android/.externalNativeBuild/
 # Claude Code — config local del agente
 .claude/
 memory/
+
+# BSolutions Print Connector installer (binario, no versionar)
+/public/downloads/BSolutionsPrintConnectorSetup.exe

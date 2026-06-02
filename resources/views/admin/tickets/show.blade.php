@@ -198,8 +198,6 @@
                 reprintBtn.disabled = true;
 
                 try {
-                    await window.BSQZ?.connectQzTray?.();
-
                     const response = await fetch(reprintBtn.dataset.reprintUrl, {
                         method: 'POST',
                         credentials: 'same-origin',

@@ -38,7 +38,7 @@
             <div class="col-md-4 mb-3">
                 <label class="form-label">Tipo de conexión *</label>
                 <select class="form-select" name="connection_type" required>
-                    @foreach (['PRINT_CONNECTOR' => 'BSolutions Print Connector (Windows)', 'QZ_TRAY' => 'QZ Tray (Windows local)', 'USB' => 'USB', 'NETWORK' => 'Red (Ethernet)', 'WINDOWS_SHARED' => 'Compartida Windows', 'BLUETOOTH' => 'Bluetooth'] as $val => $label)
+                    @foreach (['PRINT_CONNECTOR' => 'BSolutions Print Connector (Windows)', 'USB' => 'USB', 'NETWORK' => 'Red (Ethernet)', 'WINDOWS_SHARED' => 'Compartida Windows', 'BLUETOOTH' => 'Bluetooth'] as $val => $label)
                         <option value="{{ $val }}" @selected(old('connection_type', $printer->connection_type) === $val)>{{ $label }}</option>
                     @endforeach
                 </select>
@@ -55,9 +55,9 @@
                 <label class="form-label">Identificador *</label>
                 <input class="form-control" name="printer_identifier" required maxlength="255"
                        value="{{ old('printer_identifier', $printer->printer_identifier) }}"
-                       placeholder="QZ Tray: nombre exacto en Windows | USB: COM3 | Red: 192.168.1.50 | Bluetooth: 00:11:22:33:44:55 | Windows: \\PC\Impresora">
+                       placeholder="Print Connector: nombre exacto en Windows | USB: COM3 | Red: 192.168.1.50 | Bluetooth: 00:11:22:33:44:55 | Windows: \\PC\Impresora">
                 <div class="form-text">
-                    <strong>QZ Tray:</strong> nombre exacto de la impresora en Windows (ej: EPSON TM-T20II Receipt5) &nbsp;|&nbsp;
+                    <strong>Print Connector:</strong> nombre exacto de la impresora en Windows (ej: EPSON TM-T20II Receipt5) &nbsp;|&nbsp;
                     <strong>USB:</strong> Puerto COM (ej: COM3) &nbsp;|&nbsp;
                     <strong>Red:</strong> IP (ej: 192.168.1.50) &nbsp;|&nbsp;
                     <strong>Bluetooth:</strong> Dirección MAC &nbsp;|&nbsp;

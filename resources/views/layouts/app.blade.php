@@ -37,21 +37,6 @@
         })();
     </script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    @auth
-    <script>
-        window.bsApiBase = '/api';
-        window.bsQz = {
-            certificateUrl: '{{ route('admin.printers.qz.certificate', [], false) }}',
-            signUrl: '{{ route('admin.printers.qz.sign', [], false) }}',
-            pendingUrl: '{{ route('admin.printers.qz.print-jobs.pending', [], false) }}',
-            ackBaseUrl: '/admin/printers/qz/print-jobs',
-            installCommand: @json(config('print.qz_install_command')),
-        };
-        window.bsQzAutoConnect = {{ request()->routeIs('admin.printers.*') || request()->routeIs('admin.tickets.create') ? 'true' : 'false' }};
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js"></script>
-    <script src="{{ asset('js/qz-print.js') }}"></script>
-    @endauth
 </head>
 <body>
     @auth
@@ -364,12 +349,6 @@
                                     <span>Configuración</span>
                                 </a>
                             </li>
-                            <li class="nav-item">
-                                <a class="nav-link py-1 {{ request()->routeIs('admin.printers.qz.queue') ? 'active' : '' }}" href="{{ route('admin.printers.qz.queue') }}">
-                                    <i class="bi bi-list-task"></i>
-                                    <span>Cola de impresión</span>
-                                </a>
-                            </li>
                         </ul>
                     </li>
                 @endif
@@ -390,12 +369,6 @@
                     </div>
                 </div>
                 <div class="argon-navbar-user">
-                    @if(auth()->user()->hasPermission('printers.view'))
-                    <div id="printAgentIndicator" class="d-none d-md-flex align-items-center me-3" title="QZ Tray">
-                        <i class="bi bi-printer text-secondary me-1"></i>
-                        <span class="text-secondary small">...</span>
-                    </div>
-                    @endif
                     <div class="argon-navbar-user-name d-none d-md-block">{{ auth()->user()->name }}</div>
                     <div class="argon-navbar-avatar" title="{{ auth()->user()->name }}">
                         {{ strtoupper(mb_substr(auth()->user()->name, 0, 1)) }}
