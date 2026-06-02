@@ -38,7 +38,7 @@
             <div class="col-md-4 mb-3">
                 <label class="form-label">Tipo de conexión *</label>
                 <select class="form-select" name="connection_type" required>
-                    @foreach (['USB' => 'USB', 'NETWORK' => 'Red (Ethernet)', 'WINDOWS_SHARED' => 'Compartida Windows', 'BLUETOOTH' => 'Bluetooth'] as $val => $label)
+                    @foreach (['QZ_TRAY' => 'QZ Tray (Windows local)', 'USB' => 'USB', 'NETWORK' => 'Red (Ethernet)', 'WINDOWS_SHARED' => 'Compartida Windows', 'BLUETOOTH' => 'Bluetooth'] as $val => $label)
                         <option value="{{ $val }}" @selected(old('connection_type', $printer->connection_type) === $val)>{{ $label }}</option>
                     @endforeach
                 </select>
@@ -55,13 +55,37 @@
                 <label class="form-label">Identificador *</label>
                 <input class="form-control" name="printer_identifier" required maxlength="255"
                        value="{{ old('printer_identifier', $printer->printer_identifier) }}"
-                       placeholder="USB: COM3 | Red: 192.168.1.50 | Bluetooth: 00:11:22:33:44:55 | Windows: \\PC\Impresora">
+                       placeholder="QZ Tray: nombre exacto en Windows | USB: COM3 | Red: 192.168.1.50 | Bluetooth: 00:11:22:33:44:55 | Windows: \\PC\Impresora">
                 <div class="form-text">
+                    <strong>QZ Tray:</strong> nombre exacto de la impresora en Windows (ej: EPSON TM-T20II Receipt5) &nbsp;|&nbsp;
                     <strong>USB:</strong> Puerto COM (ej: COM3) &nbsp;|&nbsp;
                     <strong>Red:</strong> IP (ej: 192.168.1.50) &nbsp;|&nbsp;
                     <strong>Bluetooth:</strong> Dirección MAC &nbsp;|&nbsp;
                     <strong>Compartida:</strong> Ruta UNC (ej: \\PC\Impresora)
                 </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <label class="form-label">Terminal key</label>
+                <input class="form-control" name="terminal_key" maxlength="100"
+                       value="{{ old('terminal_key', $printer->terminal_key) }}" placeholder="WEBTERM-ABC123">
+            </div>
+            <div class="col-md-4 mb-3">
+                <label class="form-label">Nombre de terminal</label>
+                <input class="form-control" name="terminal_name" maxlength="150"
+                       value="{{ old('terminal_name', $printer->terminal_name) }}" placeholder="Caja principal SUC32-03">
+            </div>
+            <div class="col-md-4 mb-3">
+                <label class="form-label">Modo de impresión</label>
+                <select class="form-select" name="printing_mode">
+                    <option value="RAW_ESCPOS" @selected(old('printing_mode', $printer->printing_mode) === 'RAW_ESCPOS')>RAW / ESC-POS</option>
+                </select>
+            </div>
+            <div class="col-md-4 mb-3">
+                <label class="form-label">Corte automático</label>
+                <select class="form-select" name="auto_cut">
+                    <option value="1" @selected((int) old('auto_cut', $printer->auto_cut ?? 1) === 1)>Sí</option>
+                    <option value="0" @selected((int) old('auto_cut', $printer->auto_cut ?? 1) === 0)>No</option>
+                </select>
             </div>
             <div class="col-md-4 mb-3">
                 <label class="form-label">Estado</label>

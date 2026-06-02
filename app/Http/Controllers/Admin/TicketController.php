@@ -108,7 +108,15 @@ class TicketController extends Controller
             : null;
 
         try {
-            $ticket = $this->saleService->sell($branch, $draw, $user, $plays, null, $session);
+            $ticket = $this->saleService->sell(
+                $branch,
+                $draw,
+                $user,
+                $plays,
+                null,
+                $session,
+                $request->input('terminal_key')
+            );
 
             if ($request->expectsJson()) {
                 return response()->json([
@@ -130,6 +138,17 @@ class TicketController extends Controller
             }
 
             return back()->withErrors($e->getMessage())->withInput();
+        } catch (\Throwable $e) {
+            report($e);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Ocurrio un error inesperado al vender el ticket.',
+                    'detail' => app()->isLocal() ? $e->getMessage() : null,
+                ], 500);
+            }
+
+            return back()->withErrors('Ocurrio un error inesperado al vender el ticket.')->withInput();
         }
     }
 
@@ -280,17 +299,45 @@ class TicketController extends Controller
         }
     }
 
-    public function reprint(Ticket $ticket): RedirectResponse
+    public function reprint(Request $request, Ticket $ticket): JsonResponse|RedirectResponse
     {
         Gate::authorize('update', $ticket);
 
         try {
-            $this->saleService->reprint($ticket, auth()->user());
+            $job = $this->saleService->reprint($ticket, auth()->user(), $request->input('terminal_key'));
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Reimpresión solicitada.',
+                    'job' => [
+                        'id' => $job->id,
+                        'uuid' => $job->uuid,
+                        'status' => $job->status,
+                    ],
+                ]);
+            }
 
             return redirect()->route('admin.tickets.show', $ticket)
                 ->with('status', 'Reimpresión solicitada.');
         } catch (\RuntimeException $e) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
+
             return back()->withErrors($e->getMessage());
+        } catch (\Throwable $e) {
+            report($e);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Ocurrio un error inesperado al reimprimir el ticket.',
+                    'detail' => app()->isLocal() ? $e->getMessage() : null,
+                ], 500);
+            }
+
+            return back()->withErrors('Ocurrio un error inesperado al reimprimir el ticket.');
         }
     }
 

@@ -49,6 +49,10 @@ class StatusBadge extends Component
         // Cash reconciliation
         'PENDING_REVIEW' => 'En revisión',
         'MATCHED' => 'Conciliado',
+        // Print jobs
+        'PROCESSING' => 'Procesando',
+        'FAILED' => 'Fallido',
+        'PRINTED' => 'Impreso',
         // Cash incident
         'RESOLVED' => 'Resuelto',
         'DISMISSED' => 'Desestimada',
@@ -87,6 +91,7 @@ class StatusBadge extends Component
         'PENDING' => 'bg-warning text-dark',
         'PENDING_RELEASE' => 'bg-warning text-dark',
         'PENDING_REVIEW' => 'bg-warning text-dark',
+        'PROCESSING' => 'bg-info text-dark',
         'RESULT_PENDING' => 'bg-info text-dark',
         'CALCULATING_WINNERS' => 'bg-info text-dark',
         'HELD' => 'bg-info text-dark',
@@ -99,12 +104,14 @@ class StatusBadge extends Component
         'LOSER' => 'bg-secondary',
         'READ' => 'bg-secondary',
         'CANCELLED' => 'bg-danger',
+        'FAILED' => 'bg-danger',
         'BLOCKED' => 'bg-danger',
         'REVOKED' => 'bg-danger',
         'REJECTED' => 'bg-danger',
         'SUSPENDED' => 'bg-danger',
         'CRITICAL' => 'bg-danger',
         'RESOLVED' => 'bg-success',
+        'PRINTED' => 'bg-success',
         'DISMISSED' => 'bg-secondary',
         'WARNING' => 'bg-warning text-dark',
         'INFO' => 'bg-info text-dark',

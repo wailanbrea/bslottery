@@ -14,13 +14,26 @@ class PrinterConfig extends Model
         'company_id',
         'branch_id',
         'device_id',
+        'terminal_key',
+        'terminal_name',
         'name',
         'printer_type',
         'connection_type',
         'paper_width',
+        'printing_mode',
+        'auto_cut',
         'printer_identifier',
         'status',
+        'last_test_at',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'auto_cut' => 'boolean',
+            'last_test_at' => 'datetime',
+        ];
+    }
 
     public function company(): BelongsTo
     {

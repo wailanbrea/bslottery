@@ -124,7 +124,7 @@
             el.title = 'Print Agent activo';
         } else {
             el.innerHTML = '<i class="bi bi-printer text-danger me-1"></i><span class="text-danger small">Sin agente</span>';
-            el.title = 'Print Agent no encontrado. Inicie bslottery-print-agent.jar';
+            el.title = 'Print Agent no encontrado. Ejecute scritplottery.';
         }
     }
 

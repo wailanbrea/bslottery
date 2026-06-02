@@ -652,9 +652,9 @@ function posTerminal() {
         companyName: @json($company?->name ?? 'BSLottery'),
         branchName: @json($branch?->name ?? 'Banca'),
         csrfToken: '{{ csrf_token() }}',
-        storeUrl: '{{ route('admin.tickets.store') }}',
-        lookupUrl: '{{ route('admin.tickets.lookup') }}',
-        checkLimitUrl: '{{ route('admin.tickets.check-limit') }}',
+        storeUrl: '{{ route('admin.tickets.store', [], false) }}',
+        lookupUrl: '{{ route('admin.tickets.lookup', [], false) }}',
+        checkLimitUrl: '{{ route('admin.tickets.check-limit', [], false) }}',
         ticketLookupToken: '',
         lookupResult: null,
         lookupExpanded: false,
@@ -1604,7 +1604,8 @@ function posTerminal() {
             if (!confirm(this.buildSaleConfirmationText())) return;
 
             this.isSelling = true;
-            let lastTicketUrl = null;
+            let lastTicketNumber = null;
+            const terminal = window.BSLotteryTerminal?.get?.() || null;
 
             try {
                 for (const drawId of drawIds) {
@@ -1613,6 +1614,12 @@ function posTerminal() {
                     formData.append('_token', this.csrfToken);
                     formData.append('branch_id', this.branchId);
                     formData.append('draw_id', drawId);
+                    if (terminal?.key) {
+                        formData.append('terminal_key', terminal.key);
+                    }
+                    if (terminal?.name) {
+                        formData.append('terminal_name', terminal.name);
+                    }
 
                     playsForDraw.forEach((p, i) => {
                         formData.append('plays[' + i + '][bet_type_id]', p.bet_type_id);
@@ -1635,15 +1642,13 @@ function posTerminal() {
                         throw new Error(payload.message || 'No se pudo vender el ticket.');
                     }
 
-                    lastTicketUrl = payload.show_url;
+                    lastTicketNumber = payload.ticket_number || null;
                 }
 
                 this.plays = [];
                 this.voltearActivo = false;
-
-                if (lastTicketUrl) {
-                    window.location.href = lastTicketUrl;
-                }
+                this.ticketLookupToken = lastTicketNumber || '';
+                this.isSelling = false;
             } catch (error) {
                 alert(error.message || 'Error vendiendo ticket.');
                 this.isSelling = false;

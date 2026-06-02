@@ -44,11 +44,11 @@ class SecurityHeaders
             $response->headers->set(
                 'Content-Security-Policy',
                 "default-src 'self'; ".
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval' cdn.jsdelivr.net fonts.bunny.net; ".
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' cdn.jsdelivr.net fonts.bunny.net static.cloudflareinsights.com; ".
                 "style-src 'self' 'unsafe-inline' cdn.jsdelivr.net fonts.bunny.net; ".
-                "font-src 'self' fonts.bunny.net data:; ".
+                "font-src 'self' cdn.jsdelivr.net fonts.bunny.net data:; ".
                 "img-src 'self' data:; ".
-                "connect-src 'self' http://127.0.0.1:8765; ".
+                "connect-src 'self' cdn.jsdelivr.net cloudflareinsights.com static.cloudflareinsights.com ws://localhost:* ws://127.0.0.1:* wss://localhost:* wss://127.0.0.1:*; ".
                 "object-src 'none'; ".
                 "base-uri 'self'; ".
                 "frame-ancestors 'self';"

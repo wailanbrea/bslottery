@@ -8,9 +8,12 @@ use App\Http\Controllers\Controller;
 use App\Models\PrintJob;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class PrintJobController extends Controller
 {
+    private const PROCESSING_TIMEOUT_MINUTES = 2;
+
     /**
      * Returns pending print jobs for the authenticated user's branch.
      * Called by the Print Agent JS bridge on page load.
@@ -19,22 +22,73 @@ class PrintJobController extends Controller
     {
         /** @var \App\Models\User $user */
         $user = $request->user();
+        $terminalKey = trim((string) $request->header('X-Terminal-Key', $request->query('terminal_key', '')));
 
-        $jobs = PrintJob::where('company_id', $user->company_id)
+        if ($terminalKey === '') {
+            return response()->json([]);
+        }
+
+        $staleThreshold = now()->subMinutes(self::PROCESSING_TIMEOUT_MINUTES);
+
+        PrintJob::query()
+            ->where('company_id', $user->company_id)
             ->when($user->branch_id, fn ($q) => $q->where('branch_id', $user->branch_id))
-            ->where('status', 'PENDING')
-            ->with('printerConfig')
-            ->orderBy('created_at')
-            ->limit(20)
-            ->get(['id', 'uuid', 'type', 'content', 'printer_config_id', 'created_at']);
+            ->where('status', 'PROCESSING')
+            ->where('updated_at', '<', $staleThreshold)
+            ->whereHas('printerConfig', function ($query) use ($terminalKey): void {
+                $query->where('status', 'ACTIVE')
+                    ->where('terminal_key', $terminalKey);
+            })
+            ->update([
+                'status' => 'FAILED',
+                'error_message' => 'Tiempo de confirmacion agotado en QZ Tray.',
+                'updated_at' => now(),
+            ]);
+
+        $jobs = DB::transaction(function () use ($user, $terminalKey) {
+            $jobs = PrintJob::query()
+                ->where('company_id', $user->company_id)
+                ->when($user->branch_id, fn ($q) => $q->where('branch_id', $user->branch_id))
+                ->where('status', 'PENDING')
+                ->whereHas('printerConfig', function ($query) use ($terminalKey): void {
+                    $query->where('status', 'ACTIVE')
+                        ->where('terminal_key', $terminalKey);
+                })
+                ->with(['printerConfig', 'ticket:id,ticket_number'])
+                ->orderBy('created_at')
+                ->lockForUpdate()
+                ->limit(20)
+                ->get(['id', 'uuid', 'type', 'content', 'printer_config_id', 'ticket_id', 'created_at']);
+
+            if ($jobs->isNotEmpty()) {
+                PrintJob::query()
+                    ->whereIn('id', $jobs->pluck('id'))
+                    ->update([
+                        'status' => 'PROCESSING',
+                        'attempts' => DB::raw('attempts + 1'),
+                        'updated_at' => now(),
+                    ]);
+
+                $jobs->each(function (PrintJob $job): void {
+                    $job->status = 'PROCESSING';
+                    $job->attempts = (int) $job->attempts + 1;
+                });
+            }
+
+            return $jobs;
+        });
 
         return response()->json($jobs->map(fn ($job) => [
             'uuid'             => $job->uuid,
             'type'             => $job->type,
             'content'          => $job->content,
+            'ticket_number'    => $job->ticket?->ticket_number,
             'printer_name'     => $job->printerConfig?->printer_identifier,
             'connection_type'  => $job->printerConfig?->connection_type ?? 'USB',
             'paper_width'      => $job->printerConfig?->paper_width ?? '58MM',
+            'printing_mode'    => $job->printerConfig?->printing_mode ?? 'RAW_ESCPOS',
+            'auto_cut'         => (bool) ($job->printerConfig?->auto_cut ?? true),
+            'terminal_key'     => $job->printerConfig?->terminal_key,
         ]));
     }
 
@@ -56,7 +110,6 @@ class PrintJobController extends Controller
             'error_message' => 'nullable|string|max:500',
         ]);
 
-        $job->increment('attempts');
         $job->update([
             'status'        => $data['status'],
             'error_message' => $data['error_message'] ?? null,

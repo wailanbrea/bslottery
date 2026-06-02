@@ -84,7 +84,7 @@ class TicketSaleService
      *
      * @param  array<int, array{bet_type_id: int, number_value: string, amount: int|float|string, position?: string|null}>  $plays
      */
-    public function sell(Branch $branch, Draw $draw, User $user, array $plays, ?Device $device = null, ?CashSession $cashSession = null): Ticket
+    public function sell(Branch $branch, Draw $draw, User $user, array $plays, ?Device $device = null, ?CashSession $cashSession = null, ?string $terminalKey = null): Ticket
     {
         // Validaciones pre-transacción
         $this->validateSalePreconditions($branch, $draw);
@@ -129,7 +129,7 @@ class TicketSaleService
             ];
         }
 
-        return DB::transaction(function () use ($branch, $draw, $user, $device, $cashSession, $resolvedPlays): Ticket {
+        return DB::transaction(function () use ($branch, $draw, $user, $device, $cashSession, $resolvedPlays, $terminalKey): Ticket {
             // Validar límites con row locking (dentro de transacción)
             foreach ($resolvedPlays as $index => $play) {
                 $validation = $this->limitValidator->validate(
@@ -215,7 +215,7 @@ class TicketSaleService
                 );
             }
 
-            $printerConfig = $this->resolvePrinterConfig($branch);
+            $printerConfig = $this->resolvePrinterConfig($branch, $terminalKey);
 
             // Trabajo de impresion
             PrintJob::create([
@@ -225,7 +225,8 @@ class TicketSaleService
                 'printer_config_id' => $printerConfig?->id,
                 'type' => 'TICKET',
                 'content' => $this->ticketPrintFormatter->format($ticket, $printerConfig?->paper_width ?? '58MM'),
-                'status' => 'PENDING',
+                'status' => $printerConfig ? 'PENDING' : 'FAILED',
+                'error_message' => $printerConfig ? null : 'No hay impresora configurada para esta terminal.',
             ]);
             // Auditoría
             app(AuditService::class)->record(
@@ -306,15 +307,29 @@ class TicketSaleService
     /**
      * Reimprime un ticket.
      */
-    public function reprint(Ticket $ticket, User $user): PrintJob
+    public function reprint(Ticket $ticket, User $user, ?string $terminalKey = null): PrintJob
     {
         if (! $ticket->isReprintable()) {
             throw new \RuntimeException('Este ticket no puede ser reimpreso.');
         }
 
-        $ticket->increment('print_count');
+        $printerConfig = $this->resolvePrinterConfig($ticket->branch, $terminalKey);
 
-        $printerConfig = $this->resolvePrinterConfig($ticket->branch);
+        if ($printerConfig) {
+            $existingJob = PrintJob::query()
+                ->where('ticket_id', $ticket->id)
+                ->where('printer_config_id', $printerConfig->id)
+                ->where('type', 'REPRINT')
+                ->whereIn('status', ['PENDING', 'PROCESSING'])
+                ->latest('id')
+                ->first();
+
+            if ($existingJob) {
+                throw new \RuntimeException('Ya existe una reimpresión pendiente o en proceso para este ticket en esta terminal.');
+            }
+        }
+
+        $ticket->increment('print_count');
 
         $job = PrintJob::create([
             'company_id' => $ticket->company_id,
@@ -323,7 +338,8 @@ class TicketSaleService
             'printer_config_id' => $printerConfig?->id,
             'type' => 'REPRINT',
             'content' => $this->ticketPrintFormatter->format($ticket, $printerConfig?->paper_width ?? '58MM', true),
-            'status' => 'PENDING',
+            'status' => $printerConfig ? 'PENDING' : 'FAILED',
+            'error_message' => $printerConfig ? null : 'No hay impresora configurada para esta terminal.',
         ]);
 
         app(AuditService::class)->record(
@@ -526,7 +542,8 @@ class TicketSaleService
                 'device_id' => $device?->id,
                 'type' => 'TICKET',
                 'content' => $this->ticketPrintFormatter->format($ticket, $printerConfig?->paper_width ?? '58MM'),
-                'status' => 'PENDING',
+                'status' => $printerConfig ? 'PENDING' : 'FAILED',
+                'error_message' => $printerConfig ? null : 'No hay impresora configurada para este dispositivo.',
             ]);
 
             app(AuditService::class)->record(
@@ -540,8 +557,22 @@ class TicketSaleService
         });
     }
 
-    private function resolvePrinterConfig(Branch $branch): ?PrinterConfig
+    private function resolvePrinterConfig(Branch $branch, ?string $terminalKey = null): ?PrinterConfig
     {
+        $terminalKey = $terminalKey !== null ? trim($terminalKey) : null;
+
+        if ($terminalKey) {
+            return PrinterConfig::where('company_id', $branch->company_id)
+                ->where('status', 'ACTIVE')
+                ->where('terminal_key', $terminalKey)
+                ->where(function ($query) use ($branch): void {
+                    $query->where('branch_id', $branch->id)->orWhereNull('branch_id');
+                })
+                ->orderByRaw('CASE WHEN branch_id = ? THEN 0 ELSE 1 END', [$branch->id])
+                ->orderByDesc('updated_at')
+                ->first();
+        }
+
         if ($branch->default_printer_id) {
             $defaultPrinter = PrinterConfig::whereKey($branch->default_printer_id)
                 ->where('company_id', $branch->company_id)

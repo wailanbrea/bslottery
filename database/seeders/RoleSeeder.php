@@ -193,6 +193,9 @@ class RoleSeeder extends Seeder
                 'cash.close',
                 'cash.transfers.view',
                 'cash.transfers.create',
+                'printers.view',
+                'printers.configure',
+                'printers.test',
             ],
             'RESULT_CONFIRM_ONLY' => [
                 'dashboard.view',

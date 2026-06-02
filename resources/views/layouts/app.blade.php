@@ -3,21 +3,54 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ config('app.name', 'BSLottery') }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=open-sans:400,500,600,700" rel="stylesheet">
     <link href="{{ asset('css/argon.css') }}" rel="stylesheet">
+    <link href="{{ asset('css/icon-fallback.css') }}" rel="stylesheet">
     <style>[x-cloak]{display:none !important}</style>
+    <script>
+        (function () {
+            function enableFallbackIfNeeded() {
+                var probe = document.createElement('i');
+                probe.className = 'bi bi-receipt';
+                probe.style.position = 'absolute';
+                probe.style.visibility = 'hidden';
+                document.body.appendChild(probe);
+
+                var fontFamily = window.getComputedStyle(probe, '::before').getPropertyValue('font-family') || '';
+                document.body.removeChild(probe);
+
+                if (fontFamily.toLowerCase().indexOf('bootstrap-icons') === -1) {
+                    document.documentElement.classList.add('icons-fallback');
+                }
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', enableFallbackIfNeeded);
+            } else {
+                enableFallbackIfNeeded();
+            }
+        })();
+    </script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     @auth
     <script>
-        window.bsPrintAgentUrl   = '{{ config('print.agent_url', 'http://127.0.0.1:8765') }}';
-        window.bsPrintAgentToken = '{{ config('print.agent_token', '') }}';
-        window.bsApiBase         = '/api';
+        window.bsApiBase = '/api';
+        window.bsQz = {
+            certificateUrl: '{{ route('admin.printers.qz.certificate', [], false) }}',
+            signUrl: '{{ route('admin.printers.qz.sign', [], false) }}',
+            pendingUrl: '{{ route('admin.printers.qz.print-jobs.pending', [], false) }}',
+            ackBaseUrl: '/admin/printers/qz/print-jobs',
+            installCommand: @json(config('print.qz_install_command')),
+        };
+        window.bsQzAutoConnect = {{ request()->routeIs('admin.printers.*') || request()->routeIs('admin.tickets.create') ? 'true' : 'false' }};
     </script>
-    <script src="{{ asset('js/print-agent.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js"></script>
+    <script src="{{ asset('js/qz-print.js') }}"></script>
     @endauth
 </head>
 <body>
@@ -326,9 +359,15 @@
                         </div>
                         <ul class="nav flex-column argon-sidebar-subnav">
                             <li class="nav-item">
-                                <a class="nav-link py-1 {{ request()->routeIs('admin.printers.*') ? 'active' : '' }}" href="{{ route('admin.printers.index') }}">
+                                <a class="nav-link py-1 {{ request()->routeIs('admin.printers.index') ? 'active' : '' }}" href="{{ route('admin.printers.index') }}">
                                     <i class="bi bi-gear"></i>
                                     <span>Configuración</span>
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link py-1 {{ request()->routeIs('admin.printers.qz.queue') ? 'active' : '' }}" href="{{ route('admin.printers.qz.queue') }}">
+                                    <i class="bi bi-list-task"></i>
+                                    <span>Cola de impresión</span>
                                 </a>
                             </li>
                         </ul>
@@ -352,7 +391,7 @@
                 </div>
                 <div class="argon-navbar-user">
                     @if(auth()->user()->hasPermission('printers.view'))
-                    <div id="printAgentIndicator" class="d-none d-md-flex align-items-center me-3" title="Print Agent">
+                    <div id="printAgentIndicator" class="d-none d-md-flex align-items-center me-3" title="QZ Tray">
                         <i class="bi bi-printer text-secondary me-1"></i>
                         <span class="text-secondary small">...</span>
                     </div>

@@ -1,0 +1,120 @@
+.icons-fallback .bi::before {
+    display: inline-block;
+    width: 1.1em;
+    text-align: center;
+    font-style: normal;
+    line-height: 1;
+    font-family: "Segoe UI Emoji", "Apple Color Emoji", "Segoe UI Symbol", sans-serif;
+}
+
+.icons-fallback .bi-speedometer2::before { content: "\1F4CA"; }
+.icons-fallback .bi-building::before { content: "\1F3E2"; }
+.icons-fallback .bi-shop::before { content: "\1F3EA"; }
+.icons-fallback .bi-people::before,
+.icons-fallback .bi-people-fill::before { content: "\1F465"; }
+.icons-fallback .bi-person::before,
+.icons-fallback .bi-person-badge::before { content: "\1F464"; }
+.icons-fallback .bi-shield-check::before,
+.icons-fallback .bi-shield-lock::before { content: "\1F6E1"; }
+.icons-fallback .bi-ticket-perforated::before { content: "\1F39F"; }
+.icons-fallback .bi-calendar-event::before,
+.icons-fallback .bi-calendar3::before,
+.icons-fallback .bi-calendar-check::before,
+.icons-fallback .bi-calendar2-check::before { content: "\1F4C5"; }
+.icons-fallback .bi-calendar-x::before { content: "\1F5D3"; }
+.icons-fallback .bi-dice-3::before { content: "\1F3B2"; }
+.icons-fallback .bi-cash-stack::before,
+.icons-fallback .bi-cash::before,
+.icons-fallback .bi-cash-coin::before,
+.icons-fallback .bi-currency-dollar::before,
+.icons-fallback .bi-wallet2::before { content: "\1F4B0"; }
+.icons-fallback .bi-shield-exclamation::before,
+.icons-fallback .bi-exclamation-triangle::before,
+.icons-fallback .bi-exclamation-triangle-fill::before,
+.icons-fallback .bi-exclamation-octagon::before,
+.icons-fallback .bi-exclamation-octagon-fill::before { content: "\26A0"; }
+.icons-fallback .bi-graph-up::before,
+.icons-fallback .bi-bar-chart::before,
+.icons-fallback .bi-bar-chart-line::before,
+.icons-fallback .bi-activity::before { content: "\1F4C8"; }
+.icons-fallback .bi-cart-plus::before,
+.icons-fallback .bi-cart-check::before { content: "\1F6D2"; }
+.icons-fallback .bi-receipt::before { content: "\1F9FE"; }
+.icons-fallback .bi-trophy::before { content: "\1F3C6"; }
+.icons-fallback .bi-bell::before,
+.icons-fallback .bi-bell-fill::before { content: "\1F514"; }
+.icons-fallback .bi-cash-register::before { content: "\1F9EE"; }
+.icons-fallback .bi-bank::before { content: "\1F3E6"; }
+.icons-fallback .bi-journal-bookmark::before,
+.icons-fallback .bi-journal-check::before,
+.icons-fallback .bi-journal-text::before,
+.icons-fallback .bi-book::before { content: "\1F4D8"; }
+.icons-fallback .bi-phone::before,
+.icons-fallback .bi-telephone::before { content: "\1F4F1"; }
+.icons-fallback .bi-pc-display::before,
+.icons-fallback .bi-windows::before { content: "\1F5A5"; }
+.icons-fallback .bi-gear-wide-connected::before,
+.icons-fallback .bi-gear::before,
+.icons-fallback .bi-sliders::before { content: "\2699"; }
+.icons-fallback .bi-printer::before { content: "\1F5A8"; }
+.icons-fallback .bi-key::before,
+.icons-fallback .bi-lock::before,
+.icons-fallback .bi-lock-fill::before,
+.icons-fallback .bi-unlock::before { content: "\1F511"; }
+.icons-fallback .bi-box-arrow-right::before,
+.icons-fallback .bi-box-arrow-left::before,
+.icons-fallback .bi-box-arrow-in-right::before,
+.icons-fallback .bi-arrow-right-circle::before,
+.icons-fallback .bi-arrow-left-circle::before,
+.icons-fallback .bi-send::before { content: "\21AA"; }
+.icons-fallback .bi-arrow-left::before { content: "\2190"; }
+.icons-fallback .bi-arrow-repeat::before,
+.icons-fallback .bi-arrow-clockwise::before,
+.icons-fallback .bi-arrow-counterclockwise::before { content: "\1F504"; }
+.icons-fallback .bi-arrow-left-right::before,
+.icons-fallback .bi-arrow-down-up::before { content: "\2194"; }
+.icons-fallback .bi-arrow-up-short::before { content: "\2191"; }
+.icons-fallback .bi-arrow-down-short::before { content: "\2193"; }
+.icons-fallback .bi-list::before,
+.icons-fallback .bi-list-check::before,
+.icons-fallback .bi-list-ol::before { content: "\2630"; }
+.icons-fallback .bi-clock-history::before,
+.icons-fallback .bi-clock::before,
+.icons-fallback .bi-hourglass-split::before { content: "\1F558"; }
+.icons-fallback .bi-x-circle::before,
+.icons-fallback .bi-slash-circle::before,
+.icons-fallback .bi-dash-circle::before,
+.icons-fallback .bi-x-octagon::before { content: "\26D4"; }
+.icons-fallback .bi-check-circle::before,
+.icons-fallback .bi-check2-circle::before,
+.icons-fallback .bi-check2::before,
+.icons-fallback .bi-check-lg::before,
+.icons-fallback .bi-check-all::before { content: "\2705"; }
+.icons-fallback .bi-info-circle::before,
+.icons-fallback .bi-info-circle-fill::before { content: "\2139"; }
+.icons-fallback .bi-search::before { content: "\1F50D"; }
+.icons-fallback .bi-eye::before { content: "\1F441"; }
+.icons-fallback .bi-copy::before,
+.icons-fallback .bi-file-earmark-code::before,
+.icons-fallback .bi-file-earmark-excel::before,
+.icons-fallback .bi-file-earmark-pdf::before,
+.icons-fallback .bi-filetype-csv::before { content: "\1F4C4"; }
+.icons-fallback .bi-qr-code::before,
+.icons-fallback .bi-qr-code-scan::before,
+.icons-fallback .bi-upc-scan::before { content: "\1F4F7"; }
+.icons-fallback .bi-question::before,
+.icons-fallback .bi-question-circle::before { content: "\2753"; }
+.icons-fallback .bi-cloud-slash::before { content: "\2601"; }
+.icons-fallback .bi-download::before { content: "\2B07"; }
+.icons-fallback .bi-trash::before { content: "\1F5D1"; }
+.icons-fallback .bi-shuffle::before,
+.icons-fallback .bi-plus-slash-minus::before,
+.icons-fallback .bi-arrows-collapse-vertical::before { content: "\21C5"; }
+.icons-fallback .bi-funnel::before { content: "\1F5D0"; }
+.icons-fallback .bi-save::before { content: "\1F4BE"; }
+.icons-fallback .bi-play-fill::before { content: "\25B6"; }
+.icons-fallback .bi-pencil::before { content: "\270F"; }
+.icons-fallback .bi-hash::before { content: "#"; }
+.icons-fallback .bi-plus-circle::before,
+.icons-fallback .bi-plus-lg::before { content: "+"; }
+.icons-fallback .bi-x-lg::before { content: "\2715"; }

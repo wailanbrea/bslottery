@@ -8,12 +8,10 @@
         </div>
         <div class="d-flex gap-2">
             @if (auth()->user()->hasPermission('sales.reprint') && $ticket->isReprintable())
-                <form method="POST" action="{{ route('admin.tickets.reprint', $ticket) }}">
-                    @csrf
-                    <button class="btn btn-outline-info" type="submit">
-                        <i class="bi bi-printer me-1"></i>Reimprimir
-                    </button>
-                </form>
+                <button id="reprintTicketBtn" class="btn btn-outline-info" type="button"
+                        data-reprint-url="{{ route('admin.tickets.reprint', $ticket, false) }}">
+                    <i class="bi bi-printer me-1"></i>Reimprimir
+                </button>
             @endif
             <button class="btn btn-outline-primary" type="button" onclick="navigator.clipboard?.writeText('{{ $ticket->ticket_number }}')">
                 <i class="bi bi-copy me-1"></i>Copiar número
@@ -186,4 +184,47 @@
             </div>
         </div>
     @endif
+
+    @push('scripts')
+    <script>
+        (function () {
+            const reprintBtn = document.getElementById('reprintTicketBtn');
+            if (!reprintBtn) {
+                return;
+            }
+
+            reprintBtn.addEventListener('click', async function () {
+                const terminal = window.BSLotteryTerminal?.get?.() || null;
+                reprintBtn.disabled = true;
+
+                try {
+                    await window.BSQZ?.connectQzTray?.();
+
+                    const response = await fetch(reprintBtn.dataset.reprintUrl, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        },
+                        body: JSON.stringify({
+                            terminal_key: terminal?.key || null,
+                            terminal_name: terminal?.name || null,
+                        }),
+                    });
+
+                    const payload = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(payload.message || 'No se pudo solicitar la reimpresión.');
+                    }
+                } catch (error) {
+                    alert(error.message || 'Ocurrio un error al reimprimir el ticket.');
+                } finally {
+                    reprintBtn.disabled = false;
+                }
+            });
+        })();
+    </script>
+    @endpush
 @endsection

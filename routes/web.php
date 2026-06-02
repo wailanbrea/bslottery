@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\PayoutRuleController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\Admin\PrinterController;
 use App\Http\Controllers\Admin\PrizeController;
+use App\Http\Controllers\Admin\QzTrayController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\ResultController;
 use App\Http\Controllers\Admin\SettingsController;
@@ -33,6 +34,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InitialSetupController;
 use App\Http\Controllers\LicenseActivationController;
 use App\Http\Controllers\TicketPublicLookupController;
+use App\Http\Controllers\Api\PrintJobController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/license/activate', [LicenseActivationController::class, 'create'])->name('license.activate');
@@ -321,6 +323,34 @@ Route::middleware(['auth', 'active.context'])
             ->name('prizes.history');
 
         // Impresoras
+        Route::get('printers/qz/certificate', [QzTrayController::class, 'certificate'])
+            ->name('printers.qz.certificate');
+        Route::post('printers/qz/sign', [QzTrayController::class, 'sign'])
+            ->name('printers.qz.sign');
+        Route::get('printers/qz/current-terminal', [QzTrayController::class, 'currentTerminal'])
+            ->name('printers.qz.current-terminal');
+        Route::get('printers/qz/queue', [QzTrayController::class, 'queuePage'])
+            ->name('printers.qz.queue');
+        Route::get('printers/qz/queue/data', [QzTrayController::class, 'queueData'])
+            ->name('printers.qz.queue-data');
+        Route::post('printers/qz/current-terminal', [QzTrayController::class, 'saveCurrentTerminal'])
+            ->name('printers.qz.save-current-terminal');
+        Route::post('printers/qz/current-terminal/tested', [QzTrayController::class, 'markTested'])
+            ->name('printers.qz.mark-tested');
+        Route::post('printers/qz/credentials', [QzTrayController::class, 'uploadCredentials'])
+            ->name('printers.qz.credentials.upload');
+        Route::get('printers/qz/credentials/digital-certificate.txt', [QzTrayController::class, 'downloadTrustedCertificate'])
+            ->name('printers.qz.credentials.download-certificate');
+        Route::get('printers/qz/credentials/confiar-qz.bat', [QzTrayController::class, 'downloadTrustScript'])
+            ->name('printers.qz.credentials.download-script');
+        Route::post('printers/qz/queue/clear', [QzTrayController::class, 'clearPending'])
+            ->name('printers.qz.queue.clear');
+        Route::post('printers/qz/queue/purge', [QzTrayController::class, 'purgeQueue'])
+            ->name('printers.qz.queue.purge');
+        Route::get('printers/qz/print-jobs/pending', [PrintJobController::class, 'pending'])
+            ->name('printers.qz.print-jobs.pending');
+        Route::post('printers/qz/print-jobs/{uuid}/ack', [PrintJobController::class, 'ack'])
+            ->name('printers.qz.print-jobs.ack');
         Route::resource('printers', PrinterController::class)->except(['show', 'destroy'])
             ->middlewareFor('index', 'permission:printers.view')
             ->middlewareFor(['create', 'store'], 'permission:printers.configure')
