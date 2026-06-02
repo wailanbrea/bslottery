@@ -59,11 +59,14 @@ class ApiController extends Controller
                 ], 403);
             }
 
+            $platform = strtoupper((string) ($data['platform'] ?? ''));
+            $deviceType = in_array($platform, ['ANDROID', 'WINDOWS'], true) ? $platform : 'ANDROID';
+
             $device->forceFill([
                 'branch_id'          => $user->branch_id,
                 'user_id'            => $user->id,
                 'name'               => $data['device_name'] ?? ($device->name ?? 'Android'),
-                'device_type'        => 'ANDROID',
+                'device_type'        => $deviceType,
                 'platform'           => $data['platform'] ?? 'ANDROID',
                 'app_version'        => $data['app_version'] ?? $device->app_version,
                 'device_fingerprint' => $data['device_fingerprint'] ?? $device->device_fingerprint,

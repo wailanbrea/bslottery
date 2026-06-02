@@ -38,7 +38,7 @@
             <div class="col-md-4 mb-3">
                 <label class="form-label">Tipo de conexión *</label>
                 <select class="form-select" name="connection_type" required>
-                    @foreach (['QZ_TRAY' => 'QZ Tray (Windows local)', 'USB' => 'USB', 'NETWORK' => 'Red (Ethernet)', 'WINDOWS_SHARED' => 'Compartida Windows', 'BLUETOOTH' => 'Bluetooth'] as $val => $label)
+                    @foreach (['PRINT_CONNECTOR' => 'BSolutions Print Connector (Windows)', 'QZ_TRAY' => 'QZ Tray (Windows local)', 'USB' => 'USB', 'NETWORK' => 'Red (Ethernet)', 'WINDOWS_SHARED' => 'Compartida Windows', 'BLUETOOTH' => 'Bluetooth'] as $val => $label)
                         <option value="{{ $val }}" @selected(old('connection_type', $printer->connection_type) === $val)>{{ $label }}</option>
                     @endforeach
                 </select>
