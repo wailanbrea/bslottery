@@ -349,6 +349,12 @@
                                     <span>Configuración</span>
                                 </a>
                             </li>
+                            <li class="nav-item">
+                                <a class="nav-link py-1 {{ request()->routeIs('admin.printers.queue') ? 'active' : '' }}" href="{{ route('admin.printers.queue') }}">
+                                    <i class="bi bi-list-task"></i>
+                                    <span>Cola de impresión</span>
+                                </a>
+                            </li>
                         </ul>
                     </li>
                 @endif

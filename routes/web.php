@@ -325,6 +325,18 @@ Route::middleware(['auth', 'active.context'])
         Route::get('printers/connector/install-script', [PrinterController::class, 'downloadConnectorInstallScript'])
             ->middleware('permission:printers.configure')
             ->name('printers.connector.script');
+        Route::get('printers/queue', [PrinterController::class, 'queue'])
+            ->middleware('permission:printers.view')
+            ->name('printers.queue');
+        Route::post('printers/queue/clear', [PrinterController::class, 'clearQueue'])
+            ->middleware('permission:printers.configure')
+            ->name('printers.queue.clear');
+        Route::post('printers/queue/purge', [PrinterController::class, 'purgeQueue'])
+            ->middleware('permission:printers.configure')
+            ->name('printers.queue.purge');
+        Route::post('printers/queue/{job}/retry', [PrinterController::class, 'retryJob'])
+            ->middleware('permission:printers.configure')
+            ->name('printers.queue.retry');
         Route::resource('printers', PrinterController::class)->except(['show', 'destroy'])
             ->middlewareFor('index', 'permission:printers.view')
             ->middlewareFor(['create', 'store'], 'permission:printers.configure')

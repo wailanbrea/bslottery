@@ -140,6 +140,76 @@ class PrinterController extends Controller
         return redirect()->route('admin.printers.index')->with('status', "Prueba enviada a {$printer->name}. Job #{$job->id}");
     }
 
+    public function queue(Request $request): View
+    {
+        Gate::authorize('viewAny', PrinterConfig::class);
+
+        $companyId = session('active_company_id');
+        $branchId = session('active_branch_id');
+
+        $printers = PrinterConfig::where('company_id', $companyId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->orderBy('name')
+            ->get();
+
+        $printerId = $request->integer('printer_config_id') ?: null;
+
+        $jobs = \App\Models\PrintJob::with(['ticket:id,ticket_number', 'printerConfig:id,name,terminal_name'])
+            ->where('company_id', $companyId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($printerId, fn ($q) => $q->where('printer_config_id', $printerId))
+            ->orderByRaw("FIELD(status, 'PENDING', 'PROCESSING', 'FAILED', 'PRINTED')")
+            ->orderByDesc('id')
+            ->limit(100)
+            ->get();
+
+        return view('admin.printers.queue', compact('printers', 'jobs', 'printerId'));
+    }
+
+    public function retryJob(\App\Models\PrintJob $job): RedirectResponse
+    {
+        Gate::authorize('create', PrinterConfig::class);
+        abort_unless((int) $job->company_id === (int) session('active_company_id'), 403);
+
+        if (in_array($job->status, ['FAILED', 'PROCESSING'], true)) {
+            $job->update(['status' => 'PENDING', 'error_message' => null, 'printed_at' => null]);
+        }
+
+        return back()->with('status', "Trabajo #{$job->id} reencolado.");
+    }
+
+    public function clearQueue(Request $request): RedirectResponse
+    {
+        Gate::authorize('create', PrinterConfig::class);
+
+        $companyId = session('active_company_id');
+        $branchId = session('active_branch_id');
+        $printerId = $request->integer('printer_config_id') ?: null;
+
+        $affected = \App\Models\PrintJob::where('company_id', $companyId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($printerId, fn ($q) => $q->where('printer_config_id', $printerId))
+            ->whereIn('status', ['PENDING', 'PROCESSING'])
+            ->update(['status' => 'FAILED', 'error_message' => 'Cancelado desde la cola de impresion.']);
+
+        return back()->with('status', "Se cancelaron {$affected} trabajo(s) pendiente(s).");
+    }
+
+    public function purgeQueue(Request $request): RedirectResponse
+    {
+        Gate::authorize('create', PrinterConfig::class);
+
+        $companyId = session('active_company_id');
+        $branchId = session('active_branch_id');
+        $printerId = $request->integer('printer_config_id') ?: null;
+
+        $affected = \App\Models\PrintJob::where('company_id', $companyId)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($printerId, fn ($q) => $q->where('printer_config_id', $printerId))
+            ->delete();
+
+        return back()->with('status', "Se eliminaron {$affected} trabajo(s) de la cola.");
+    }
 
     public function downloadConnectorInstallScript(): Response
     {
