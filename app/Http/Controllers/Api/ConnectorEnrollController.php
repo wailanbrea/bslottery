@@ -99,6 +99,8 @@ class ConnectorEnrollController extends Controller
             $branch->forceFill(['default_printer_id' => $printer->id])->save();
         }
 
+        // Evitar acumular tokens: dejar uno por dispositivo.
+        $serviceUser->tokens()->where('name', 'connector-'.$data['device_uuid'])->delete();
         $token = $serviceUser->createToken('connector-'.$data['device_uuid'])->plainTextToken;
 
         return response()->json([
