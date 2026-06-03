@@ -153,6 +153,27 @@ class PrinterController extends Controller
         return redirect()->route('admin.printers.index')->with('status', "Prueba enviada a {$printer->name}. Job #{$job->id}");
     }
 
+    public function destroy(PrinterConfig $printer): RedirectResponse
+    {
+        Gate::authorize('update', $printer);
+        abort_unless((int) $printer->company_id === (int) session('active_company_id'), 403);
+
+        // Si es la impresora por defecto de alguna sucursal, limpiar la referencia.
+        Branch::where('default_printer_id', $printer->id)->update(['default_printer_id' => null]);
+
+        $name = $printer->name;
+        $oldValues = $printer->toArray();
+        $printer->delete(); // print_jobs.printer_config_id queda en null (nullOnDelete)
+
+        app(AuditService::class)->record(
+            module: 'Printers', action: 'deleted', auditable: $printer,
+            description: "Impresora {$name} eliminada.",
+            oldValues: $oldValues,
+        );
+
+        return redirect()->route('admin.printers.index')->with('status', "Impresora {$name} eliminada.");
+    }
+
     public function queue(Request $request): View
     {
         Gate::authorize('viewAny', PrinterConfig::class);

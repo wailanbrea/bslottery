@@ -350,6 +350,9 @@ Route::middleware(['auth', 'active.context'])
         Route::post('printers/{printer}/test', [PrinterController::class, 'test'])
             ->middleware('permission:printers.test')
             ->name('printers.test');
+        Route::delete('printers/{printer}', [PrinterController::class, 'destroy'])
+            ->middleware('permission:printers.configure')
+            ->name('printers.destroy');
 
         // Configuracion
         Route::get('settings/results', [SettingsController::class, 'results'])

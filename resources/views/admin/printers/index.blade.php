@@ -131,6 +131,16 @@
                                         </button>
                                     </form>
                                 @endif
+                                @if (auth()->user()->hasPermission('printers.configure'))
+                                    <form method="POST" action="{{ route('admin.printers.destroy', $printer) }}"
+                                          onsubmit="return confirm('Eliminar la impresora &quot;{{ $printer->name }}&quot;? Si una caja la sigue usando, se volvera a crear al guardar en el conector.')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button class="btn btn-sm btn-outline-danger" type="submit" title="Eliminar impresora">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                @endif
                             </div>
                         </td>
                     </tr>
