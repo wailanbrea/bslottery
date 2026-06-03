@@ -227,12 +227,13 @@ class PrinterController extends Controller
             .'set "DEST=%TEMP%\BSolutionsPrintConnectorSetup.exe"'."\r\n"
             .'set "CFGDIR=%LOCALAPPDATA%\BSolutions\PrintConnector\config"'."\r\n"
             ."echo Descargando BSolutions Print Connector...\r\n"
-            .'powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri \'%URL%\' -OutFile \'%DEST%\' -UseBasicParsing"'."\r\n"
+            .'curl.exe -L --fail -o "%DEST%" "%URL%"'."\r\n"
+            .'if errorlevel 1 ( echo No se pudo descargar el instalador. Verifica la conexion. & pause & exit /b 1 )'."\r\n"
+            .'if not exist "%CFGDIR%" mkdir "%CFGDIR%"'."\r\n"
+            .'>"%CFGDIR%\provision.json" echo {"server_url":"'.$serverUrl.'","enroll_token":"'.$enrollToken.'"}'."\r\n"
             ."echo Instalando...\r\n"
             .'"%DEST%" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART'."\r\n"
             .'del "%DEST%" >nul 2>&1'."\r\n"
-            .'if not exist "%CFGDIR%" mkdir "%CFGDIR%"'."\r\n"
-            .'>"%CFGDIR%\provision.json" echo {"server_url":"'.$serverUrl.'","enroll_token":"'.$enrollToken.'"}'."\r\n"
             ."echo Listo. El conector se autoconfigura solo al abrir.\r\n"
             ."pause\r\n";
 
