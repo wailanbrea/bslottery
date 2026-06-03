@@ -94,8 +94,11 @@ class ConnectorEnrollController extends Controller
         ]);
         $printer->save();
 
-        // Si la sucursal no tiene impresora por defecto, asignar esta (las ventas web caen aqui).
-        if (! $branch->default_printer_id) {
+        // El conector que se (re)aprovisiona pasa a ser la impresora por defecto de la sucursal:
+        // las ventas web y reimpresiones (que resuelven por default_printer_id) caen en la terminal
+        // activa. Imprescindible para reprovisionar una caja sin que los trabajos vayan a una
+        // PrinterConfig vieja (de un enroll anterior) que el conector vivo ya no consulta.
+        if ($branch->default_printer_id !== $printer->id) {
             $branch->forceFill(['default_printer_id' => $printer->id])->save();
         }
 
