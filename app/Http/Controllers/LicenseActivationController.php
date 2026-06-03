@@ -74,11 +74,22 @@ class LicenseActivationController extends Controller
             ]);
     }
 
-    public function blocked(Request $request, LicenseService $licenses): View
-    {
+    public function blocked(
+        Request $request,
+        LicenseService $licenses,
+        InitialSetupService $setup,
+    ): View|RedirectResponse {
+        $decision = $licenses->accessDecision();
+
+        if ($decision['allowed']) {
+            return redirect()->route($setup->isCompleted() ? 'dashboard' : 'setup.initial');
+        }
+
+        $state = $licenses->current();
+
         return view('licensing.blocked', [
-            'state' => $licenses->current(),
-            'reason' => $request->query('reason', 'LICENSE_INVALID'),
+            'state' => $state,
+            'reason' => $state?->reason_code ?: $request->query('reason', 'LICENSE_INVALID'),
         ]);
     }
 }
