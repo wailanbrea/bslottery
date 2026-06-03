@@ -6,11 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\PrinterConfig;
 use App\Services\Audit\AuditService;
+use App\Support\Printing\PrinterTargetGuard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 use Illuminate\View\View;
 
@@ -77,6 +79,7 @@ class PrinterController extends Controller
         $data['company_id'] = session('active_company_id');
         $data['printing_mode'] ??= 'RAW_ESCPOS';
         $data['auto_cut'] = (bool) ($data['auto_cut'] ?? true);
+        $this->assertAllowedPrinterIdentifier($data);
 
         $printer = PrinterConfig::create($data);
         $this->syncBranchDefaultPrinter($printer);
@@ -121,6 +124,7 @@ class PrinterController extends Controller
         $oldValues = $printer->toArray();
         $data['printing_mode'] ??= 'RAW_ESCPOS';
         $data['auto_cut'] = (bool) ($data['auto_cut'] ?? true);
+        $this->assertAllowedPrinterIdentifier($data);
         $printer->update($data);
         $this->syncBranchDefaultPrinter($printer);
 
@@ -291,6 +295,19 @@ class PrinterController extends Controller
 
         if ((int) $branch->default_printer_id !== (int) $printer->id) {
             $branch->forceFill(['default_printer_id' => $printer->id])->save();
+        }
+    }
+
+    private function assertAllowedPrinterIdentifier(array $data): void
+    {
+        if (($data['connection_type'] ?? null) !== 'PRINT_CONNECTOR') {
+            return;
+        }
+
+        if (! PrinterTargetGuard::isAllowedForConnector($data['printer_identifier'] ?? null)) {
+            throw ValidationException::withMessages([
+                'printer_identifier' => PrinterTargetGuard::connectorValidationMessage(),
+            ]);
         }
     }
 }

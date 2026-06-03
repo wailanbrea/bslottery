@@ -9,6 +9,7 @@ use App\Models\Branch;
 use App\Models\Device;
 use App\Models\PrinterConfig;
 use App\Models\User;
+use App\Support\Printing\PrinterTargetGuard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -44,6 +45,14 @@ class ConnectorEnrollController extends Controller
 
         $companyId = $branch->company_id;
         $machineName = trim((string) ($data['machine_name'] ?? $data['device_name'] ?? '')) ?: 'Caja';
+        $printerName = trim((string) ($data['printer_name'] ?? ''));
+
+        if (! PrinterTargetGuard::isAllowedForConnector($printerName)) {
+            return response()->json([
+                'message' => PrinterTargetGuard::connectorValidationMessage(),
+                'code' => 'PRINTER_NOT_ALLOWED',
+            ], 422);
+        }
 
         // Usuario de servicio por sucursal (emite el token y resuelve company/branch en pending/ack).
         $serviceUser = User::firstOrCreate(
@@ -89,7 +98,7 @@ class ConnectorEnrollController extends Controller
             'paper_width'        => $printer->paper_width ?: '80MM',
             'printing_mode'      => 'RAW_ESCPOS',
             'auto_cut'           => $printer->auto_cut ?? true,
-            'printer_identifier' => ! empty($data['printer_name']) ? $data['printer_name'] : ($printer->printer_identifier ?: $machineName),
+            'printer_identifier' => $printerName !== '' ? $printerName : ($printer->printer_identifier ?: $machineName),
             'status'             => 'ACTIVE',
         ]);
         $printer->save();

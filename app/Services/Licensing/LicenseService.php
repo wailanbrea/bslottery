@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 declare(strict_types=1);
 
@@ -173,6 +173,7 @@ class LicenseService
     {
         $existing = $this->current();
         $valid = $this->isValidResult($result);
+        $transportFailure = $this->isTransportFailure($result);
         $now = now();
 
         $state = LicenseState::query()->updateOrCreate(
@@ -185,20 +186,32 @@ class LicenseService
                 'client_location_code' => $locationCode ?: $existing?->client_location_code ?: (string) config('licensing.default_location_code'),
                 'domain' => $domain ?: $existing?->domain,
                 'app_version' => (string) config('licensing.app_version'),
-                'status' => $result->status ?: ($valid ? 'active' : ($existing?->status ?: 'invalid')),
-                'reason_code' => $result->reasonCode,
-                'message' => $result->message,
+                'status' => $transportFailure
+                    ? ($existing?->status ?: 'invalid')
+                    : ($result->status ?: ($valid ? 'active' : ($existing?->status ?: 'invalid'))),
+                'reason_code' => $transportFailure
+                    ? ($existing?->reason_code ?: 'SERVER_ERROR')
+                    : $result->reasonCode,
+                'message' => $transportFailure
+                    ? ($existing?->message ?: $result->message)
+                    : $result->message,
                 'expires_at' => $result->expiresAt ? CarbonImmutable::parse($result->expiresAt) : $existing?->expires_at,
-                'last_validation_success' => $valid,
-                'last_validation_at' => $valid ? $now : $existing?->last_validation_at,
+                'last_validation_success' => $transportFailure
+                    ? (bool) ($existing?->last_validation_success ?? false)
+                    : $valid,
+                'last_validation_at' => $transportFailure
+                    ? $existing?->last_validation_at
+                    : ($valid ? $now : $existing?->last_validation_at),
                 'last_server_time' => $result->serverTime ? CarbonImmutable::parse($result->serverTime) : $existing?->last_server_time,
                 'last_seen_system_time' => $now,
-                'offline_grace_expires_at' => $valid ? $this->calculateOfflineGraceExpiration($result) : $existing?->offline_grace_expires_at,
-                'features' => $result->features ?: $existing?->features,
-                'limits' => $result->limits ?: $existing?->limits,
-                'metadata' => $result->metadata ?: $existing?->metadata,
-                'client' => $result->client ?: $existing?->client,
-                'location' => $result->location ?: $existing?->location,
+                'offline_grace_expires_at' => $transportFailure
+                    ? $existing?->offline_grace_expires_at
+                    : ($valid ? $this->calculateOfflineGraceExpiration($result) : $existing?->offline_grace_expires_at),
+                'features' => ($transportFailure || empty($result->features)) ? $existing?->features : $result->features,
+                'limits' => ($transportFailure || empty($result->limits)) ? $existing?->limits : $result->limits,
+                'metadata' => ($transportFailure || empty($result->metadata)) ? $existing?->metadata : $result->metadata,
+                'client' => ($transportFailure || empty($result->client)) ? $existing?->client : $result->client,
+                'location' => ($transportFailure || empty($result->location)) ? $existing?->location : $result->location,
                 'is_active' => true,
             ]
         );
@@ -217,6 +230,12 @@ class LicenseService
             && $result->valid
             && in_array($result->reasonCode, self::VALID_ACTIVE_CODES, true)
             && ! in_array($result->reasonCode, self::HARD_BLOCK_CODES, true);
+    }
+
+    private function isTransportFailure(LicenseApiResult $result): bool
+    {
+        return $result->reasonCode === 'SERVER_ERROR'
+            || (($result->httpStatus ?? 0) >= 500);
     }
 
     private function isOnlineValid(LicenseState $state): bool
