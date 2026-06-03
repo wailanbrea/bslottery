@@ -30,6 +30,7 @@ class Branch extends Model
         'accounting_enabled',
         'payroll_enabled',
         'default_printer_id',
+        'connector_enroll_token',
     ];
 
     protected function casts(): array

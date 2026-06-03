@@ -32,13 +32,27 @@
                 <i class="bi bi-box-arrow-down me-1"></i>Descargar instalador (.exe)
             </a>
         </div>
-        <ol class="small text-secondary mb-0">
-            <li>Descarga e instala el conector en la PC de la caja (boton automatico: ejecuta el .bat descargado).</li>
-            <li>Abre <strong>BSolutions Print Connector</strong> y entra a <strong>Configuracion</strong>.</li>
-            <li>Escribe la URL del sistema, usuario/clave y la <strong>terminal key</strong> de esta caja.</li>
-            <li>Selecciona la <strong>impresora</strong> de la lista y pulsa <strong>Guardar</strong>.</li>
-            <li>Autoriza el dispositivo en <a href="{{ route('admin.devices.index') }}">Dispositivos</a> y pulsa <strong>Iniciar conector</strong>.</li>
+        <div class="alert alert-info small mb-3">
+            <i class="bi bi-magic me-1"></i>
+            <strong>Auto-configuracion:</strong> el boton "Descargar e instalar (automatico)" trae embebida
+            la URL del sistema y el token de esta <strong>sucursal</strong>. Al instalar, la caja se
+            <strong>autoconfigura sola</strong> (crea su impresora, se autoriza y arranca). Solo si la caja
+            tiene varias impresoras, el operador elige cual en la app.
+        </div>
+        <ol class="small text-secondary mb-3">
+            <li>En la PC de la caja, ejecuta el <strong>.bat</strong> descargado (se instala en silencio).</li>
+            <li>Abre <strong>BSolutions Print Connector</strong>: ya queda conectado e imprimiendo.</li>
+            <li>(Opcional) si hay varias impresoras, eligela en <strong>Configuracion</strong> y Guarda.</li>
         </ol>
+        @if (auth()->user()->hasPermission('printers.configure'))
+            <form method="POST" action="{{ route('admin.printers.connector.regenerate-token') }}"
+                  onsubmit="return confirm('Regenerar el token invalida los instaladores ya descargados de esta sucursal. Continuar?')">
+                @csrf
+                <button class="btn btn-sm btn-outline-secondary" type="submit">
+                    <i class="bi bi-key me-1"></i>Regenerar token de instalacion (sucursal)
+                </button>
+            </form>
+        @endif
     </div>
 </div>
 

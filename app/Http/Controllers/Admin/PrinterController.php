@@ -215,23 +215,60 @@ class PrinterController extends Controller
     {
         Gate::authorize('create', PrinterConfig::class);
 
+        $branch = $this->activeBranchForEnroll();
+        $enrollToken = $this->ensureEnrollToken($branch);
+
         $url = asset('downloads/BSolutionsPrintConnectorSetup.exe');
+        $serverUrl = rtrim(url('/'), '/');
 
         $content = "@echo off\r\n"
             ."setlocal\r\n"
             .'set "URL='.$url.'"'."\r\n"
             .'set "DEST=%TEMP%\BSolutionsPrintConnectorSetup.exe"'."\r\n"
+            .'set "CFGDIR=%LOCALAPPDATA%\BSolutions\PrintConnector\config"'."\r\n"
             ."echo Descargando BSolutions Print Connector...\r\n"
             .'powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri \'%URL%\' -OutFile \'%DEST%\' -UseBasicParsing"'."\r\n"
             ."echo Instalando...\r\n"
             .'"%DEST%" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART'."\r\n"
             .'del "%DEST%" >nul 2>&1'."\r\n"
-            ."echo Listo. Abre BSolutions Print Connector desde el menu inicio.\r\n"
+            .'if not exist "%CFGDIR%" mkdir "%CFGDIR%"'."\r\n"
+            .'>"%CFGDIR%\provision.json" echo {"server_url":"'.$serverUrl.'","enroll_token":"'.$enrollToken.'"}'."\r\n"
+            ."echo Listo. El conector se autoconfigura solo al abrir.\r\n"
             ."pause\r\n";
 
         return response($content, 200, [
             'Content-Type' => 'text/plain; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename="instalar-print-connector.bat"',
         ]);
+    }
+
+    public function regenerateEnrollToken(): RedirectResponse
+    {
+        Gate::authorize('create', PrinterConfig::class);
+
+        $branch = $this->activeBranchForEnroll();
+        $branch->forceFill(['connector_enroll_token' => \Illuminate\Support\Str::random(48)])->save();
+
+        return back()->with('status', 'Token de instalacion regenerado para esta sucursal.');
+    }
+
+    private function activeBranchForEnroll(): \App\Models\Branch
+    {
+        $branchId = session('active_branch_id');
+        abort_if(! $branchId, 422, 'Selecciona una sucursal para generar el instalador auto-configurado.');
+
+        $branch = \App\Models\Branch::where('company_id', session('active_company_id'))->find($branchId);
+        abort_if(! $branch, 404, 'Sucursal no encontrada.');
+
+        return $branch;
+    }
+
+    private function ensureEnrollToken(\App\Models\Branch $branch): string
+    {
+        if (! $branch->connector_enroll_token) {
+            $branch->forceFill(['connector_enroll_token' => \Illuminate\Support\Str::random(48)])->save();
+        }
+
+        return $branch->connector_enroll_token;
     }
 }

@@ -34,12 +34,18 @@ use App\Http\Controllers\InitialSetupController;
 use App\Http\Controllers\LicenseActivationController;
 use App\Http\Controllers\TicketPublicLookupController;
 use App\Http\Controllers\Api\PrintJobController;
+use App\Http\Controllers\Api\ConnectorEnrollController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/license/activate', [LicenseActivationController::class, 'create'])->name('license.activate');
 Route::post('/license/activate', [LicenseActivationController::class, 'store'])->name('license.activate.store');
 Route::get('/license/blocked', [LicenseActivationController::class, 'blocked'])->name('license.blocked');
 Route::post('/license/revalidate', [LicenseActivationController::class, 'revalidate'])->name('license.revalidate');
+
+// Auto-aprovisionamiento del Print Connector (sin sesion/CSRF; validado por token de sucursal).
+Route::post('api/connector/enroll', [ConnectorEnrollController::class, 'enroll'])
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class])
+    ->name('connector.enroll');
 
 Route::get('/setup/initial', [InitialSetupController::class, 'create'])->name('setup.initial');
 Route::post('/setup/initial', [InitialSetupController::class, 'store'])->name('setup.initial.store');
@@ -325,6 +331,9 @@ Route::middleware(['auth', 'active.context'])
         Route::get('printers/connector/install-script', [PrinterController::class, 'downloadConnectorInstallScript'])
             ->middleware('permission:printers.configure')
             ->name('printers.connector.script');
+        Route::post('printers/connector/regenerate-token', [PrinterController::class, 'regenerateEnrollToken'])
+            ->middleware('permission:printers.configure')
+            ->name('printers.connector.regenerate-token');
         Route::get('printers/queue', [PrinterController::class, 'queue'])
             ->middleware('permission:printers.view')
             ->name('printers.queue');
