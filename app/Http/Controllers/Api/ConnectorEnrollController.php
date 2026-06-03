@@ -28,6 +28,7 @@ class ConnectorEnrollController extends Controller
             'device_uuid'  => 'required|uuid',
             'device_name'  => 'nullable|string|max:150',
             'machine_name' => 'nullable|string|max:150',
+            'printer_name' => 'nullable|string|max:255',
         ]);
 
         $branch = Branch::where('connector_enroll_token', $data['enroll_token'])
@@ -88,7 +89,7 @@ class ConnectorEnrollController extends Controller
             'paper_width'        => $printer->paper_width ?: '80MM',
             'printing_mode'      => 'RAW_ESCPOS',
             'auto_cut'           => $printer->auto_cut ?? true,
-            'printer_identifier' => $printer->printer_identifier ?: $machineName,
+            'printer_identifier' => ! empty($data['printer_name']) ? $data['printer_name'] : ($printer->printer_identifier ?: $machineName),
             'status'             => 'ACTIVE',
         ]);
         $printer->save();
