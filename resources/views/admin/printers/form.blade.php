@@ -22,7 +22,7 @@
                 <select class="form-select" name="branch_id">
                     <option value="">Todas</option>
                     @foreach ($branches as $branch)
-                        <option value="{{ $branch->id }}" @selected((int) old('branch_id', $printer->branch_id) === $branch->id)>
+                        <option value="{{ $branch->id }}" @selected((int) old('branch_id', $printer->branch_id ?: session('active_branch_id')) === $branch->id)>
                             {{ $branch->code }} — {{ $branch->name }}
                         </option>
                     @endforeach

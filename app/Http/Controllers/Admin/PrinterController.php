@@ -35,8 +35,9 @@ class PrinterController extends Controller
             $branch = \App\Models\Branch::where('company_id', $companyId)->find($branchId);
             if ($branch) {
                 $token = $this->ensureEnrollToken($branch);
+                $serverUrl = rtrim($request->getSchemeAndHttpHost(), '/');
                 $provisionCode = base64_encode(json_encode([
-                    'u' => rtrim(url('/'), '/'),
+                    'u' => $serverUrl,
                     't' => $token,
                 ], JSON_UNESCAPED_SLASHES));
             }
@@ -78,6 +79,7 @@ class PrinterController extends Controller
         $data['auto_cut'] = (bool) ($data['auto_cut'] ?? true);
 
         $printer = PrinterConfig::create($data);
+        $this->syncBranchDefaultPrinter($printer);
 
         app(AuditService::class)->record(
             module: 'Printers', action: 'created', auditable: $printer,
@@ -120,6 +122,7 @@ class PrinterController extends Controller
         $data['printing_mode'] ??= 'RAW_ESCPOS';
         $data['auto_cut'] = (bool) ($data['auto_cut'] ?? true);
         $printer->update($data);
+        $this->syncBranchDefaultPrinter($printer);
 
         app(AuditService::class)->record(
             module: 'Printers', action: 'updated', auditable: $printer,
@@ -273,5 +276,21 @@ class PrinterController extends Controller
         }
 
         return $branch->connector_enroll_token;
+    }
+
+    private function syncBranchDefaultPrinter(PrinterConfig $printer): void
+    {
+        if ((string) $printer->status !== 'ACTIVE' || ! $printer->branch_id) {
+            return;
+        }
+
+        $branch = Branch::where('company_id', $printer->company_id)->find($printer->branch_id);
+        if (! $branch) {
+            return;
+        }
+
+        if ((int) $branch->default_printer_id !== (int) $printer->id) {
+            $branch->forceFill(['default_printer_id' => $printer->id])->save();
+        }
     }
 }
