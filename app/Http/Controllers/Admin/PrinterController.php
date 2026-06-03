@@ -29,7 +29,20 @@ class PrinterController extends Controller
             ->orderBy('name')
             ->paginate(20);
 
-        return view('admin.printers.index', compact('printers'));
+        // Codigo de aprovisionamiento de la sucursal activa (URL + token, base64) para pegar en el conector.
+        $provisionCode = null;
+        if ($branchId && auth()->user()->hasPermission('printers.configure')) {
+            $branch = \App\Models\Branch::where('company_id', $companyId)->find($branchId);
+            if ($branch) {
+                $token = $this->ensureEnrollToken($branch);
+                $provisionCode = base64_encode(json_encode([
+                    'u' => rtrim(url('/'), '/'),
+                    't' => $token,
+                ], JSON_UNESCAPED_SLASHES));
+            }
+        }
+
+        return view('admin.printers.index', compact('printers', 'provisionCode'));
     }
 
     public function create(): View
@@ -209,38 +222,6 @@ class PrinterController extends Controller
             ->delete();
 
         return back()->with('status', "Se eliminaron {$affected} trabajo(s) de la cola.");
-    }
-
-    public function downloadConnectorInstallScript(): Response
-    {
-        Gate::authorize('create', PrinterConfig::class);
-
-        $branch = $this->activeBranchForEnroll();
-        $enrollToken = $this->ensureEnrollToken($branch);
-
-        $url = asset('downloads/BSolutionsPrintConnectorSetup.exe');
-        $serverUrl = rtrim(url('/'), '/');
-
-        $content = "@echo off\r\n"
-            ."setlocal\r\n"
-            .'set "URL='.$url.'"'."\r\n"
-            .'set "DEST=%TEMP%\BSolutionsPrintConnectorSetup.exe"'."\r\n"
-            .'set "CFGDIR=%LOCALAPPDATA%\BSolutions\PrintConnector\config"'."\r\n"
-            ."echo Descargando BSolutions Print Connector...\r\n"
-            .'curl.exe -L --fail -o "%DEST%" "%URL%"'."\r\n"
-            .'if errorlevel 1 ( echo No se pudo descargar el instalador. Verifica la conexion. & pause & exit /b 1 )'."\r\n"
-            .'if not exist "%CFGDIR%" mkdir "%CFGDIR%"'."\r\n"
-            .'>"%CFGDIR%\provision.json" echo {"server_url":"'.$serverUrl.'","enroll_token":"'.$enrollToken.'"}'."\r\n"
-            ."echo Instalando...\r\n"
-            .'"%DEST%" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART'."\r\n"
-            .'del "%DEST%" >nul 2>&1'."\r\n"
-            ."echo Listo. El conector se autoconfigura solo al abrir.\r\n"
-            ."pause\r\n";
-
-        return response($content, 200, [
-            'Content-Type' => 'text/plain; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="instalar-print-connector.bat"',
-        ]);
     }
 
     public function regenerateEnrollToken(): RedirectResponse

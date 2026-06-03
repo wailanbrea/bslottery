@@ -328,9 +328,6 @@ Route::middleware(['auth', 'active.context'])
             ->name('prizes.history');
 
         // Impresoras
-        Route::get('printers/connector/install-script', [PrinterController::class, 'downloadConnectorInstallScript'])
-            ->middleware('permission:printers.configure')
-            ->name('printers.connector.script');
         Route::post('printers/connector/regenerate-token', [PrinterController::class, 'regenerateEnrollToken'])
             ->middleware('permission:printers.configure')
             ->name('printers.connector.regenerate-token');

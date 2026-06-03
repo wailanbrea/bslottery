@@ -21,37 +21,47 @@
     </div>
     <div class="card-body">
         <p class="text-secondary small mb-3">
-            El conector es una pequena app de Windows que imprime los tickets en la impresora
-            termica local. Instalala una vez por caja y selecciona la impresora dentro del conector.
+            El conector es una app de Windows que imprime los tickets en la impresora local. Se instala
+            una vez por caja y se autoconfigura pegando el codigo de esta sucursal.
         </p>
-        <div class="d-flex gap-2 flex-wrap mb-3">
-            <a class="btn btn-primary" href="{{ route('admin.printers.connector.script') }}">
-                <i class="bi bi-magic me-1"></i>Descargar e instalar (automatico)
-            </a>
-            <a class="btn btn-outline-secondary" href="{{ asset('downloads/BSolutionsPrintConnectorSetup.exe') }}">
+        <ol class="small text-secondary mb-3">
+            <li><strong>Descarga el instalador</strong> y ejecutalo en la PC de la caja (doble clic).</li>
+            <li>Abre <strong>BSolutions Print Connector</strong> &rarr; <strong>Configuracion</strong> &rarr;
+                <strong>Aprovisionar con codigo</strong> y pega el codigo de abajo.</li>
+            <li>Queda conectado e imprimiendo. El mismo codigo sirve para todas las cajas de esta sucursal.</li>
+        </ol>
+        <div class="mb-3">
+            <a class="btn btn-primary" href="{{ asset('downloads/BSolutionsPrintConnectorSetup.exe') }}">
                 <i class="bi bi-box-arrow-down me-1"></i>Descargar instalador (.exe)
             </a>
         </div>
-        <div class="alert alert-info small mb-3">
-            <i class="bi bi-magic me-1"></i>
-            <strong>Auto-configuracion:</strong> el boton "Descargar e instalar (automatico)" trae embebida
-            la URL del sistema y el token de esta <strong>sucursal</strong>. Al instalar, la caja se
-            <strong>autoconfigura sola</strong> (crea su impresora, se autoriza y arranca). Solo si la caja
-            tiene varias impresoras, el operador elige cual en la app.
-        </div>
-        <ol class="small text-secondary mb-3">
-            <li>En la PC de la caja, ejecuta el <strong>.bat</strong> descargado (se instala en silencio).</li>
-            <li>Abre <strong>BSolutions Print Connector</strong>: ya queda conectado e imprimiendo.</li>
-            <li>(Opcional) si hay varias impresoras, eligela en <strong>Configuracion</strong> y Guarda.</li>
-        </ol>
-        @if (auth()->user()->hasPermission('printers.configure'))
-            <form method="POST" action="{{ route('admin.printers.connector.regenerate-token') }}"
-                  onsubmit="return confirm('Regenerar el token invalida los instaladores ya descargados de esta sucursal. Continuar?')">
-                @csrf
-                <button class="btn btn-sm btn-outline-secondary" type="submit">
-                    <i class="bi bi-key me-1"></i>Regenerar token de instalacion (sucursal)
+
+        @if ($provisionCode)
+            <label class="form-label small mb-1"><strong>Codigo de aprovisionamiento</strong> (sucursal activa)</label>
+            <div class="input-group mb-2">
+                <input id="provisionCode" type="text" class="form-control font-monospace" readonly value="{{ $provisionCode }}">
+                <button class="btn btn-outline-secondary" type="button"
+                        onclick="navigator.clipboard.writeText(document.getElementById('provisionCode').value); this.innerHTML='<i class=\'bi bi-check\'></i> Copiado';">
+                    <i class="bi bi-clipboard me-1"></i>Copiar
                 </button>
-            </form>
+            </div>
+            <p class="small text-secondary mb-3">
+                Contiene la URL del sistema y el token de esta sucursal. No requiere usuario/clave.
+                Cualquiera con este codigo puede registrar una caja en esta sucursal: tratalo como una contrasena.
+            </p>
+            @if (auth()->user()->hasPermission('printers.configure'))
+                <form method="POST" action="{{ route('admin.printers.connector.regenerate-token') }}"
+                      onsubmit="return confirm('Regenerar invalida el codigo anterior. Continuar?')">
+                    @csrf
+                    <button class="btn btn-sm btn-outline-secondary" type="submit">
+                        <i class="bi bi-key me-1"></i>Regenerar codigo (sucursal)
+                    </button>
+                </form>
+            @endif
+        @else
+            <div class="alert alert-warning small mb-0">
+                Selecciona una <strong>sucursal</strong> (arriba) para ver su codigo de aprovisionamiento.
+            </div>
         @endif
     </div>
 </div>
