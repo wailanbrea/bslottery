@@ -88,11 +88,73 @@
                 </select>
             </div>
             <div class="col-md-4 mb-3">
+                <label class="form-label">Abrir gaveta</label>
+                <select class="form-select" name="open_cash_drawer">
+                    <option value="0" @selected((int) old('open_cash_drawer', $printer->open_cash_drawer ?? 0) === 0)>No</option>
+                    <option value="1" @selected((int) old('open_cash_drawer', $printer->open_cash_drawer ?? 0) === 1)>Sí</option>
+                </select>
+            </div>
+            <div class="col-md-4 mb-3">
+                <label class="form-label">Copias por impresión</label>
+                <select class="form-select" name="print_copies">
+                    @for ($i = 1; $i <= 5; $i++)
+                        <option value="{{ $i }}" @selected((int) old('print_copies', $printer->print_copies ?? 1) === $i)>{{ $i }}</option>
+                    @endfor
+                </select>
+            </div>
+            <div class="col-md-3 mb-3">
+                <label class="form-label">Mostrar QR</label>
+                <select class="form-select" name="show_qr">
+                    <option value="1" @selected((int) old('show_qr', $printer->show_qr ?? 1) === 1)>Sí</option>
+                    <option value="0" @selected((int) old('show_qr', $printer->show_qr ?? 1) === 0)>No</option>
+                </select>
+            </div>
+            <div class="col-md-3 mb-3">
+                <label class="form-label">Mostrar teléfono</label>
+                <select class="form-select" name="show_phone">
+                    <option value="1" @selected((int) old('show_phone', $printer->show_phone ?? 1) === 1)>Sí</option>
+                    <option value="0" @selected((int) old('show_phone', $printer->show_phone ?? 1) === 0)>No</option>
+                </select>
+            </div>
+            <div class="col-md-3 mb-3">
+                <label class="form-label">Mostrar dirección</label>
+                <select class="form-select" name="show_address">
+                    <option value="0" @selected((int) old('show_address', $printer->show_address ?? 0) === 0)>No</option>
+                    <option value="1" @selected((int) old('show_address', $printer->show_address ?? 0) === 1)>Sí</option>
+                </select>
+            </div>
+            <div class="col-md-3 mb-3">
+                <label class="form-label">Mostrar premio potencial</label>
+                <select class="form-select" name="show_potential_prize">
+                    <option value="0" @selected((int) old('show_potential_prize', $printer->show_potential_prize ?? 0) === 0)>No</option>
+                    <option value="1" @selected((int) old('show_potential_prize', $printer->show_potential_prize ?? 0) === 1)>Sí</option>
+                </select>
+            </div>
+            <div class="col-md-12 mb-3">
+                <label class="form-label">Texto final / reglas</label>
+                <textarea class="form-control" name="footer_text" rows="3" maxlength="1500"
+                          placeholder="Conserve este ticket. Premios sujetos a validación y reglas vigentes.">{{ old('footer_text', $printer->footer_text) }}</textarea>
+                <div class="form-text">Se imprime al final del ticket. Si lo dejas vacío, el sistema usa un texto estándar.</div>
+            </div>
+            <div class="col-md-4 mb-3">
                 <label class="form-label">Estado</label>
                 <select class="form-select" name="status">
                     <option value="ACTIVE" @selected(old('status', $printer->status) === 'ACTIVE')>Activa</option>
                     <option value="INACTIVE" @selected(old('status', $printer->status) === 'INACTIVE')>Inactiva</option>
                 </select>
+            </div>
+            <div class="col-12 mb-1">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="1" id="make_default" name="make_default"
+                           @checked(old('make_default'))>
+                    <label class="form-check-label" for="make_default">
+                        Establecer esta impresora como principal al guardar
+                    </label>
+                </div>
+                <div class="form-text">
+                    Si la impresora tiene <strong>terminal key</strong>, quedará como principal de esa terminal.
+                    Si no tiene terminal key, quedará como principal de la sucursal seleccionada.
+                </div>
             </div>
         </div>
     </div>

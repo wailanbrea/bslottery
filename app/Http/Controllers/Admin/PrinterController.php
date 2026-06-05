@@ -11,7 +11,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 use Illuminate\View\View;
@@ -66,12 +68,21 @@ class PrinterController extends Controller
             'branch_id' => 'nullable|exists:branches,id',
             'terminal_key' => 'nullable|string|max:100',
             'terminal_name' => 'nullable|string|max:150',
+            'make_default' => 'nullable|boolean',
             'name' => 'required|string|max:150',
             'printer_type' => 'required|in:THERMAL,NORMAL',
             'connection_type' => 'required|in:USB,NETWORK,WINDOWS_SHARED,BLUETOOTH,PRINT_CONNECTOR',
             'paper_width' => 'required|in:58MM,80MM,88MM',
             'printing_mode' => 'nullable|in:RAW_ESCPOS',
             'auto_cut' => 'nullable|boolean',
+            'show_logo' => 'nullable|boolean',
+            'show_qr' => 'nullable|boolean',
+            'show_phone' => 'nullable|boolean',
+            'show_address' => 'nullable|boolean',
+            'show_potential_prize' => 'nullable|boolean',
+            'footer_text' => 'nullable|string|max:1500',
+            'open_cash_drawer' => 'nullable|boolean',
+            'print_copies' => 'nullable|integer|min:1|max:5',
             'printer_identifier' => 'required|string|max:255',
             'status' => 'sometimes|in:ACTIVE,INACTIVE',
         ]);
@@ -79,10 +90,21 @@ class PrinterController extends Controller
         $data['company_id'] = session('active_company_id');
         $data['printing_mode'] ??= 'RAW_ESCPOS';
         $data['auto_cut'] = (bool) ($data['auto_cut'] ?? true);
+        $makeDefault = (bool) ($data['make_default'] ?? false);
+        unset($data['make_default']);
+        $data['show_logo'] = (bool) ($data['show_logo'] ?? false);
+        $data['show_qr'] = (bool) ($data['show_qr'] ?? true);
+        $data['show_phone'] = (bool) ($data['show_phone'] ?? true);
+        $data['show_address'] = (bool) ($data['show_address'] ?? false);
+        $data['show_potential_prize'] = (bool) ($data['show_potential_prize'] ?? false);
+        $data['open_cash_drawer'] = (bool) ($data['open_cash_drawer'] ?? false);
+        $data['print_copies'] = (int) ($data['print_copies'] ?? 1);
         $this->assertAllowedPrinterIdentifier($data);
 
         $printer = PrinterConfig::create($data);
-        $this->syncBranchDefaultPrinter($printer);
+        if ($makeDefault) {
+            $this->makePrinterDefault($printer);
+        }
 
         app(AuditService::class)->record(
             module: 'Printers', action: 'created', auditable: $printer,
@@ -111,12 +133,21 @@ class PrinterController extends Controller
             'branch_id' => 'nullable|exists:branches,id',
             'terminal_key' => 'nullable|string|max:100',
             'terminal_name' => 'nullable|string|max:150',
+            'make_default' => 'nullable|boolean',
             'name' => 'required|string|max:150',
             'printer_type' => 'required|in:THERMAL,NORMAL',
             'connection_type' => 'required|in:USB,NETWORK,WINDOWS_SHARED,BLUETOOTH,PRINT_CONNECTOR',
             'paper_width' => 'required|in:58MM,80MM,88MM',
             'printing_mode' => 'nullable|in:RAW_ESCPOS',
             'auto_cut' => 'nullable|boolean',
+            'show_logo' => 'nullable|boolean',
+            'show_qr' => 'nullable|boolean',
+            'show_phone' => 'nullable|boolean',
+            'show_address' => 'nullable|boolean',
+            'show_potential_prize' => 'nullable|boolean',
+            'footer_text' => 'nullable|string|max:1500',
+            'open_cash_drawer' => 'nullable|boolean',
+            'print_copies' => 'nullable|integer|min:1|max:5',
             'printer_identifier' => 'required|string|max:255',
             'status' => 'sometimes|in:ACTIVE,INACTIVE',
         ]);
@@ -124,9 +155,20 @@ class PrinterController extends Controller
         $oldValues = $printer->toArray();
         $data['printing_mode'] ??= 'RAW_ESCPOS';
         $data['auto_cut'] = (bool) ($data['auto_cut'] ?? true);
+        $makeDefault = (bool) ($data['make_default'] ?? false);
+        unset($data['make_default']);
+        $data['show_logo'] = (bool) ($data['show_logo'] ?? false);
+        $data['show_qr'] = (bool) ($data['show_qr'] ?? true);
+        $data['show_phone'] = (bool) ($data['show_phone'] ?? true);
+        $data['show_address'] = (bool) ($data['show_address'] ?? false);
+        $data['show_potential_prize'] = (bool) ($data['show_potential_prize'] ?? false);
+        $data['open_cash_drawer'] = (bool) ($data['open_cash_drawer'] ?? false);
+        $data['print_copies'] = (int) ($data['print_copies'] ?? 1);
         $this->assertAllowedPrinterIdentifier($data);
         $printer->update($data);
-        $this->syncBranchDefaultPrinter($printer);
+        if ($makeDefault) {
+            $this->makePrinterDefault($printer->fresh());
+        }
 
         app(AuditService::class)->record(
             module: 'Printers', action: 'updated', auditable: $printer,
@@ -165,20 +207,48 @@ class PrinterController extends Controller
         Gate::authorize('update', $printer);
         abort_unless((int) $printer->company_id === (int) session('active_company_id'), 403);
 
-        // Si es la impresora por defecto de alguna sucursal, limpiar la referencia.
-        Branch::where('default_printer_id', $printer->id)->update(['default_printer_id' => null]);
-
         $name = $printer->name;
         $oldValues = $printer->toArray();
-        $printer->delete(); // print_jobs.printer_config_id queda en null (nullOnDelete)
 
-        app(AuditService::class)->record(
-            module: 'Printers', action: 'deleted', auditable: $printer,
-            description: "Impresora {$name} eliminada.",
-            oldValues: $oldValues,
-        );
+        try {
+            DB::transaction(function () use ($printer, $name, $oldValues): void {
+                // Si es la impresora por defecto de alguna sucursal, limpiar la referencia.
+                Branch::where('default_printer_id', $printer->id)->update(['default_printer_id' => null]);
+
+                $printer->delete(); // print_jobs.printer_config_id queda en null (nullOnDelete)
+
+                app(AuditService::class)->record(
+                    module: 'Printers',
+                    action: 'deleted',
+                    auditable: $printer,
+                    description: "Impresora {$name} eliminada.",
+                    oldValues: $oldValues,
+                );
+            });
+        } catch (Throwable $e) {
+            Log::error('No se pudo eliminar la impresora.', [
+                'printer_id' => $printer->id,
+                'company_id' => $printer->company_id,
+                'branch_id' => $printer->branch_id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()
+                ->route('admin.printers.index')
+                ->with('error', "No se pudo eliminar la impresora {$name}. Intenta de nuevo.");
+        }
 
         return redirect()->route('admin.printers.index')->with('status', "Impresora {$name} eliminada.");
+    }
+
+    public function makeDefault(PrinterConfig $printer): RedirectResponse
+    {
+        Gate::authorize('update', $printer);
+        abort_unless((int) $printer->company_id === (int) session('active_company_id'), 403);
+
+        $this->makePrinterDefault($printer);
+
+        return back()->with('status', "La impresora {$printer->name} ahora es la principal.");
     }
 
     public function queue(Request $request): View
@@ -282,18 +352,30 @@ class PrinterController extends Controller
         return $branch->connector_enroll_token;
     }
 
-    private function syncBranchDefaultPrinter(PrinterConfig $printer): void
+    private function makePrinterDefault(PrinterConfig $printer): void
     {
-        if ((string) $printer->status !== 'ACTIVE' || ! $printer->branch_id) {
+        if ((string) $printer->status !== 'ACTIVE') {
             return;
         }
 
-        $branch = Branch::where('company_id', $printer->company_id)->find($printer->branch_id);
-        if (! $branch) {
+        if ($printer->terminal_key) {
+            PrinterConfig::where('company_id', $printer->company_id)
+                ->where('terminal_key', $printer->terminal_key)
+                ->update(['is_default' => false]);
+
+            $printer->forceFill(['is_default' => true])->save();
             return;
         }
 
-        if ((int) $branch->default_printer_id !== (int) $printer->id) {
+        $printer->forceFill(['is_default' => false])->save();
+
+        $branchId = $printer->branch_id ?: (int) session('active_branch_id');
+        if (! $branchId) {
+            return;
+        }
+
+        $branch = Branch::where('company_id', $printer->company_id)->find($branchId);
+        if ($branch && (int) $branch->default_printer_id !== (int) $printer->id) {
             $branch->forceFill(['default_printer_id' => $printer->id])->save();
         }
     }

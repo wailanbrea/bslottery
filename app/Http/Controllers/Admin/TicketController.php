@@ -14,6 +14,7 @@ use App\Services\Lottery\DrawGenerationService;
 use App\Services\Lottery\LimitValidationService;
 use App\Services\Sales\TicketSaleService;
 use App\Support\Money;
+use App\View\Components\StatusBadge;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -72,7 +73,9 @@ class TicketController extends Controller
             ->orderBy('scheduled_time')
             ->get();
 
-        return view('admin.tickets.sale', compact('branch', 'session', 'draws'));
+        $configuredPrinter = $this->saleService->resolveConfiguredPrinter($branch);
+
+        return view('admin.tickets.sale', compact('branch', 'session', 'draws', 'configuredPrinter'));
     }
 
     public function preview(TicketPreviewRequest $request): View
@@ -168,6 +171,30 @@ class TicketController extends Controller
         ]);
 
         return view('admin.tickets.show', compact('ticket'));
+    }
+
+    public function printJobs(Ticket $ticket): JsonResponse
+    {
+        Gate::authorize('view', $ticket);
+
+        $ticket->load([
+            'printJobs' => fn ($query) => $query->orderBy('created_at', 'desc'),
+        ]);
+
+        return response()->json([
+            'print_count' => $ticket->print_count,
+            'content' => optional($ticket->printJobs->first())->content ?? 'No generado',
+            'jobs' => $ticket->printJobs->map(fn ($job) => [
+                'id' => $job->id,
+                'uuid' => $job->uuid,
+                'type' => $job->type,
+                'status' => $job->status,
+                'status_label' => StatusBadge::labelFor($job->status),
+                'status_class' => StatusBadge::cssClassFor($job->status),
+                'attempts' => $job->attempts,
+                'created_at' => optional($job->created_at)->format('Y-m-d H:i') ?? '—',
+            ])->values(),
+        ]);
     }
 
     /**

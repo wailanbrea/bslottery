@@ -63,6 +63,12 @@ Route::get('/t/{uuid}', [TicketPublicLookupController::class, 'show'])
     ->where('uuid', '[0-9a-fA-F-]{36}')
     ->name('ticket.public');
 
+// URL publica corta para QR termico: numero de ticket + codigo corto.
+Route::get('/tv/{ticketNumber}/{code}', [TicketPublicLookupController::class, 'showByTicketNumber'])
+    ->where('ticketNumber', '[A-Za-z0-9-]+')
+    ->where('code', '[A-Za-z0-9-]+')
+    ->name('ticket.public.short');
+
 Route::middleware(['auth', 'active.context'])
     ->prefix('admin')
     ->name('admin.')
@@ -284,6 +290,9 @@ Route::middleware(['auth', 'active.context'])
         Route::get('tickets/check-limit', [TicketController::class, 'checkLimit'])
             ->middleware('permission:sales.create')
             ->name('tickets.check-limit');
+        Route::get('tickets/{ticket}/print-jobs', [TicketController::class, 'printJobs'])
+            ->middleware('permission:tickets.view')
+            ->name('tickets.print-jobs');
         Route::get('tickets/{ticket}', [TicketController::class, 'show'])
             ->middleware('permission:tickets.view')
             ->name('tickets.show');
@@ -343,6 +352,9 @@ Route::middleware(['auth', 'active.context'])
         Route::post('printers/queue/{job}/retry', [PrinterController::class, 'retryJob'])
             ->middleware('permission:printers.configure')
             ->name('printers.queue.retry');
+        Route::post('printers/{printer}/make-default', [PrinterController::class, 'makeDefault'])
+            ->middleware('permission:printers.configure')
+            ->name('printers.make-default');
         Route::resource('printers', PrinterController::class)->except(['show', 'destroy'])
             ->middlewareFor('index', 'permission:printers.view')
             ->middlewareFor(['create', 'store'], 'permission:printers.configure')

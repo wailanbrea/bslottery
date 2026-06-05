@@ -43,6 +43,12 @@ $initialSelectedDrawIds = $openDraws
     ->pluck('id')
     ->values();
 $betTypes = \App\Models\BetType::where('company_id', $companyId)->where('status', 'ACTIVE')->orderBy('name')->get();
+$configuredPrinterPayload = $configuredPrinter ? [
+    'id' => $configuredPrinter->id,
+    'name' => $configuredPrinter->name,
+    'identifier' => $configuredPrinter->printer_identifier,
+    'paper_width' => $configuredPrinter->paper_width,
+] : null;
 @endphp
 
 @if (!$branchId)
@@ -329,13 +335,13 @@ $betTypes = \App\Models\BetType::where('company_id', $companyId)->where('status'
                     </div>
                 </template>
 
-                <button type="button" class="btn btn-success w-100 py-2 fw-bold fs-6 d-flex align-items-center justify-content-center gap-2 mt-auto"
-                    :disabled="!canSell"
-                    @click="submitSale()">
-                    <i class="bi bi-cart-check fs-5"></i>
-                    <span x-show="!isSelling">COBRAR E IMPRIMIR</span>
-                    <span x-show="isSelling">PROCESANDO...</span>
-                </button>
+                  <button type="button" class="btn btn-success w-100 py-2 fw-bold fs-6 d-flex align-items-center justify-content-center gap-2 mt-auto"
+                      :disabled="!canSell"
+                     @click="openSaleConfirm()">
+                      <i class="bi bi-cart-check fs-5"></i>
+                      <span x-show="!isSelling">COBRAR E IMPRIMIR</span>
+                      <span x-show="isSelling">PROCESANDO...</span>
+                  </button>
                 <div class="text-center mt-1">
                     <small class="text-secondary"><kbd class="bg-light border px-1 rounded">F9</kbd></small>
                 </div>
@@ -529,11 +535,92 @@ $betTypes = \App\Models\BetType::where('company_id', $companyId)->where('status'
                 </div>
             </div>
         </div>
-    </div>
+      </div>
 
-    <!-- COMBINAR MODAL -->
-    <div class="pos-combinar-overlay" x-show="combinarModalVisible" x-transition.opacity x-cloak
-         @keydown.escape.window="combinarModalVisible = false">
+      <!-- SALE CONFIRM MODAL V2 -->
+      <div class="pos-confirm-overlay" x-show="saleConfirmV2Visible" x-transition.opacity x-cloak
+           @keydown.escape.window="closeSaleConfirm()">
+          <div class="pos-confirm-modal pos-confirm-modal-v2" @click.outside="closeSaleConfirm()">
+              <div class="d-flex justify-content-between align-items-start px-3 px-md-4 py-3 border-bottom">
+                  <div>
+                      <h5 class="mb-1 fw-semibold pos-confirm-title">Confirmar cobro</h5>
+                      <div class="pos-confirm-subtitle">Verifica las jugadas antes de cobrar e imprimir.</div>
+                  </div>
+                  <button type="button" class="btn-close" @click="closeSaleConfirm()" :disabled="isSelling" aria-label="Cerrar"></button>
+              </div>
+
+              <div class="px-3 px-md-4 py-3">
+                  <div class="pos-confirm-total-card mb-3">
+                      <div class="small text-uppercase text-secondary fw-semibold mb-1">Total a cobrar</div>
+                      <div class="d-flex flex-wrap justify-content-between align-items-end gap-2">
+                          <div class="pos-confirm-total-amount" x-text="'RD$ ' + money(totalAmount)"></div>
+                          <div class="pos-confirm-total-meta" x-text="plays.length + ' jugadas · ' + saleConfirmGroups.length + ' lotería' + (saleConfirmGroups.length === 1 ? '' : 's')"></div>
+                      </div>
+                  </div>
+
+                  <div class="pos-confirm-groups">
+                      <template x-for="group in saleConfirmGroups" :key="'confirm-group-' + group.drawId">
+                          <section class="pos-confirm-group">
+                              <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                                  <div class="fw-bold" x-text="group.groupTitle"></div>
+                                  <span class="badge text-bg-light border" x-text="group.plays.length + ' jugada' + (group.plays.length === 1 ? '' : 's')"></span>
+                              </div>
+
+                              <div class="pos-confirm-grid-header">
+                                  <span>Tipo</span>
+                                  <span>Número</span>
+                                  <span class="text-end">Monto</span>
+                              </div>
+
+                              <div class="pos-confirm-lines">
+                                  <template x-for="(play, index) in group.plays" :key="'confirm-play-' + group.drawId + '-' + index + '-' + play.number_value">
+                                      <div class="pos-confirm-line">
+                                          <div class="pos-confirm-type" x-text="betDisplayName(play.betTypeCode)"></div>
+                                          <code class="pos-confirm-number" x-text="play.number_value"></code>
+                                          <div class="pos-confirm-amount" x-text="'RD$ ' + money(play.amount)"></div>
+                                      </div>
+                                  </template>
+                              </div>
+
+                              <div class="pos-confirm-subtotal">
+                                  <span>Subtotal</span>
+                                  <strong x-text="'RD$ ' + money(group.subtotal)"></strong>
+                              </div>
+                          </section>
+                      </template>
+                  </div>
+
+                  <div class="pos-confirm-print-status mt-3" :class="hasConfiguredPrinter() ? 'is-ready' : 'is-warning'">
+                      <div class="d-flex align-items-start gap-2">
+                          <i class="bi" :class="hasConfiguredPrinter() ? 'bi-printer' : 'bi-exclamation-triangle'"></i>
+                          <div>
+                              <div class="fw-semibold" x-text="printStatusTitle()"></div>
+                              <div class="small" x-text="printStatusMessage()"></div>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+
+                  <div class="d-flex justify-content-between align-items-center gap-3 px-3 px-md-4 py-3 border-top bg-light">
+                      <div class="small text-secondary">
+                          <span class="d-block" x-show="hasConfiguredPrinter()">La impresión se enviará a la cola al confirmar el cobro.</span>
+                          <span class="d-block" x-show="!hasConfiguredPrinter()">Puedes cobrar, pero primero conviene configurar una impresora para no dejar el ticket sin imprimir.</span>
+                          <span class="d-block">Presiona <kbd class="bg-white border px-1 rounded small">Esc</kbd> para seguir editando.</span>
+                      </div>
+                      <div class="d-flex gap-2">
+                          <button type="button" class="btn btn-outline-secondary" @click="closeSaleConfirm()" :disabled="isSelling">Seguir editando</button>
+                      <button type="button" class="btn btn-success px-4" @click="submitSale()" :disabled="isSelling">
+                          <span x-show="!isSelling"><i class="bi bi-check2-circle me-1"></i><span x-text="'Cobrar RD$ ' + money(totalAmount)"></span></span>
+                          <span x-show="isSelling"><span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Procesando...</span>
+                      </button>
+                  </div>
+              </div>
+          </div>
+      </div>
+
+      <!-- COMBINAR MODAL -->
+      <div class="pos-combinar-overlay" x-show="combinarModalVisible" x-transition.opacity x-cloak
+           @keydown.escape.window="combinarModalVisible = false">
         <div class="pos-combinar-modal" @click.outside="combinarModalVisible = false">
             <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
                 <div>
@@ -651,6 +738,7 @@ function posTerminal() {
         branchId: {{ $branchId ?? 0 }},
         companyName: @json($company?->name ?? 'BSLottery'),
         branchName: @json($branch?->name ?? 'Banca'),
+        configuredPrinter: @json($configuredPrinterPayload),
         csrfToken: '{{ csrf_token() }}',
         storeUrl: '{{ route('admin.tickets.store', [], false) }}',
         lookupUrl: '{{ route('admin.tickets.lookup', [], false) }}',
@@ -662,6 +750,8 @@ function posTerminal() {
         lookupMessage: 'Escanea o escribe un ticket para copiarlo o pagarlo.',
         lookupError: false,
         isSelling: false,
+        saleConfirmVisible: false,
+        saleConfirmV2Visible: false,
         currentTime: new Date(),
         clockTimer: null,
         drawFilter: 'OPEN',
@@ -701,6 +791,28 @@ function posTerminal() {
             if (estimated.length === 0) return null;
 
             return estimated.reduce((sum, value) => sum + Number(value || 0), 0);
+        },
+
+        get saleSummary() {
+            return this.drawsWithPlays().map(drawId => ({
+                drawId,
+                lotteryName: this.getDrawLotteryName(drawId),
+                drawName: this.getDrawName(drawId),
+                plays: this.getPlaysByDraw(drawId),
+            }));
+        },
+
+        get saleConfirmGroups() {
+            return this.drawsWithPlays().map(drawId => {
+                const plays = this.getPlaysByDraw(drawId);
+
+                return {
+                    drawId,
+                    groupTitle: this.getDrawLabel(drawId),
+                    plays,
+                    subtotal: plays.reduce((sum, play) => sum + Number(play.amount || 0), 0),
+                };
+            });
         },
 
         get currentDateLabel() {
@@ -890,7 +1002,12 @@ function posTerminal() {
 
         async addPlay() {
             const val = this.inputValue.trim();
-            if (!val) return;
+            if (!val) {
+                if (this.canSell) {
+                    this.openSaleConfirm();
+                }
+                return;
+            }
             if (this.selectedDraws.length === 0) {
                 alert('Selecciona al menos una loteria.');
                 return;
@@ -951,39 +1068,12 @@ function posTerminal() {
                 return;
             }
 
-            // Pre-check de limite por draw (resta lo ya pendiente en el cart)
-            this.preCheckLoading = true;
-            let conflicts;
-            try {
-                conflicts = await this.resolveLimitConflicts(activeSelectedDraws, betType, numberValue, amount);
-            } finally {
-                this.preCheckLoading = false;
-            }
-
-            // Sin conflictos: anadir directo
-            if (conflicts.every(c => c.status === 'ok')) {
-                activeSelectedDraws.forEach(drawId => {
-                    this.appendPlayToDraw(drawId, betType, numberValue, amount, null);
-                });
-                this.inputValue = '';
-                this.cancelPendingAmount(false);
-                this.$nextTick(() => this.$refs.smartInput.focus());
-                return;
-            }
-
-            // Hay conflictos: abrir dialog para que el cajero decida
-            this.limitDialog = {
-                visible: true,
-                numberValue,
-                betType,
-                requestedAmount: amount,
-                conflicts,
-                decisions: conflicts.map(c => ({
-                    drawId: c.drawId,
-                    // default sensato: ajustar si hay disponible, omitir si agotado
-                    action: c.status === 'ok' ? 'ok' : (c.status === 'partial' ? 'adjust' : 'omit'),
-                })),
-            };
+            activeSelectedDraws.forEach(drawId => {
+                this.appendPlayToDraw(drawId, betType, numberValue, amount, null);
+            });
+            this.inputValue = '';
+            this.cancelPendingAmount(false);
+            this.$nextTick(() => this.$refs.smartInput.focus());
         },
 
         async resolveLimitConflicts(drawIds, betType, numberValue, requestedAmount) {
@@ -1150,6 +1240,62 @@ function posTerminal() {
             const draw = this.getDrawById(drawId);
 
             return draw?.name || '-';
+        },
+
+        betDisplayName(code) {
+            const normalized = String(code || '').toUpperCase();
+            if (normalized === 'QUINIELA') return 'Quiniela';
+            if (normalized === 'PALE') return 'Pale';
+            if (normalized === 'TRIPLETA') return 'Tripleta';
+            if (normalized === 'SUPER_PALE') return 'Super pale';
+
+            return normalized || '-';
+        },
+
+        hasActiveTerminal() {
+            const terminal = window.BSLotteryTerminal?.get?.() || null;
+            return Boolean(terminal?.key || terminal?.name);
+        },
+
+        hasConfiguredPrinter() {
+            return this.hasActiveTerminal() || Boolean(this.configuredPrinter?.id);
+        },
+
+        currentTerminalLabel() {
+            const terminal = window.BSLotteryTerminal?.get?.() || null;
+            return terminal?.name || terminal?.key || 'la terminal activa';
+        },
+
+        configuredPrinterLabel() {
+            return this.configuredPrinter?.name || this.configuredPrinter?.identifier || 'la impresora principal';
+        },
+
+        printStatusTitle() {
+            if (this.hasActiveTerminal()) {
+                return 'Terminal activa';
+            }
+
+            if (this.configuredPrinter?.id) {
+                return 'Impresora configurada';
+            }
+
+            return 'Sin impresora configurada';
+        },
+
+        printStatusMessage() {
+            if (this.hasActiveTerminal() && this.configuredPrinter?.id) {
+                return 'El ticket se imprimirá automáticamente. Terminal detectada: ' + this.currentTerminalLabel() + '. Respaldo configurado: ' + this.configuredPrinterLabel() + '.';
+            }
+
+            if (this.hasActiveTerminal()) {
+                return 'El ticket se imprimirá automáticamente al cobrar en ' + this.currentTerminalLabel() + '.';
+            }
+
+            if (this.configuredPrinter?.id) {
+                return 'El ticket se imprimirá automáticamente al cobrar usando ' + this.configuredPrinterLabel() + '.';
+            }
+
+            return 'No hay impresora configurada. El cobro se guardará, pero no se enviará a impresión.';
         },
 
         appendPlayToDraw(drawId, betType, numberValue, amount, estimatedPrize, adjusted = false) {
@@ -1558,6 +1704,26 @@ function posTerminal() {
             return lines.join('\n');
         },
 
+        openSaleConfirm() {
+            if (!this.canSell) return;
+            const drawIds = this.drawsWithPlays();
+            if (!drawIds.length) return;
+            if (!drawIds.every(drawId => this.isDrawSaleable(drawId))) {
+                alert('Hay jugadas en sorteos cerrados o fuera de horario. Elimina esas jugadas antes de cobrar.');
+                return;
+            }
+
+            this.saleConfirmVisible = false;
+            this.saleConfirmV2Visible = true;
+        },
+
+        closeSaleConfirm() {
+            if (this.isSelling) return;
+            this.saleConfirmVisible = false;
+            this.saleConfirmV2Visible = false;
+            this.$nextTick(() => this.$refs.smartInput?.focus());
+        },
+
         clearAll() {
             if (confirm('Limpiar todas las jugadas?')) {
                 this.plays = [];
@@ -1601,9 +1767,10 @@ function posTerminal() {
                 alert('Hay jugadas en sorteos cerrados o fuera de horario. Elimina esas jugadas antes de cobrar.');
                 return;
             }
-            if (!confirm(this.buildSaleConfirmationText())) return;
 
             this.isSelling = true;
+            this.saleConfirmVisible = false;
+            this.saleConfirmV2Visible = false;
             let lastTicketNumber = null;
             const terminal = window.BSLotteryTerminal?.get?.() || null;
 
@@ -1797,7 +1964,7 @@ function posTerminal() {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
             switch (e.key) {
                 case 'F1': e.preventDefault(); this.clearAll(); break;
-                case 'F9': e.preventDefault(); this.submitSale(); break;
+                case 'F9': e.preventDefault(); this.openSaleConfirm(); break;
                 case 'Escape': e.preventDefault(); this.clearInput(); break;
             }
         },
@@ -2018,6 +2185,159 @@ function posTerminal() {
     align-items: center;
     justify-content: center;
     padding: 1rem;
+}
+#posApp .pos-confirm-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2050;
+    background: rgba(10, 15, 30, .45);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+#posApp .pos-confirm-modal {
+    width: min(980px, 100%);
+    max-height: calc(100vh - 2rem);
+    overflow: hidden;
+    border-radius: 1.1rem;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    box-shadow: 0 28px 70px rgba(15, 23, 42, .28);
+    border: 1px solid rgba(148, 163, 184, .28);
+    display: flex;
+    flex-direction: column;
+}
+#posApp .pos-confirm-modal-v2 {
+    width: min(720px, calc(100vw - 24px));
+    border-radius: 1rem;
+}
+#posApp .pos-confirm-title {
+    font-size: 1.25rem;
+    line-height: 1.2;
+}
+#posApp .pos-confirm-subtitle {
+    font-size: .875rem;
+    color: #64748b;
+}
+#posApp .pos-confirm-total-card {
+    border-radius: 1rem;
+    border: 1px solid rgba(22, 163, 74, .18);
+    background: linear-gradient(180deg, #f7fff8 0%, #effcf3 100%);
+    padding: 1rem 1.1rem;
+}
+#posApp .pos-confirm-total-amount {
+    font-size: 2rem;
+    line-height: 1;
+    font-weight: 800;
+    color: #14532d;
+}
+#posApp .pos-confirm-total-meta {
+    font-size: .875rem;
+    color: #475569;
+    font-weight: 600;
+}
+#posApp .pos-confirm-stat {
+    border-radius: .95rem;
+    border: 1px solid rgba(226, 232, 240, 1);
+    background: #fff;
+    padding: .9rem 1rem;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
+}
+#posApp .pos-confirm-total {
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    border-color: rgba(16, 185, 129, .22);
+}
+#posApp .pos-confirm-groups {
+    display: flex;
+    flex-direction: column;
+    gap: .85rem;
+    max-height: 50vh;
+    overflow: auto;
+    padding-right: .15rem;
+}
+#posApp .pos-confirm-group {
+    border: 1px solid rgba(226, 232, 240, 1);
+    background: rgba(255,255,255,.92);
+    border-radius: .95rem;
+    padding: .9rem 1rem;
+}
+#posApp .pos-confirm-grid-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+    gap: .75rem;
+    font-size: .76rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: #64748b;
+    font-weight: 700;
+    padding: 0 .1rem .45rem;
+    border-bottom: 1px solid rgba(226, 232, 240, .9);
+    margin-bottom: .5rem;
+}
+#posApp .pos-confirm-lines {
+    display: flex;
+    flex-direction: column;
+    gap: .45rem;
+}
+#posApp .pos-confirm-line {
+    display: grid;
+    align-items: center;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+    gap: .75rem;
+    padding: .55rem .15rem;
+    border-radius: .75rem;
+    background: transparent;
+    border-bottom: 1px dashed rgba(226, 232, 240, .85);
+}
+#posApp .pos-confirm-line:last-child {
+    border-bottom: none;
+}
+#posApp .pos-confirm-type {
+    font-size: .95rem;
+    color: #334155;
+    font-weight: 600;
+}
+#posApp .pos-confirm-number {
+    font-size: 1.25rem;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: .03em;
+    color: #0f172a;
+}
+#posApp .pos-confirm-amount {
+    font-size: 1.12rem;
+    line-height: 1;
+    font-weight: 800;
+    color: #0f766e;
+    white-space: nowrap;
+    text-align: right;
+}
+#posApp .pos-confirm-subtotal {
+    margin-top: .55rem;
+    padding-top: .7rem;
+    border-top: 1px solid rgba(226, 232, 240, .9);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: .95rem;
+    color: #334155;
+}
+#posApp .pos-confirm-print-status {
+    border-radius: .95rem;
+    padding: .85rem 1rem;
+    border: 1px solid rgba(226, 232, 240, 1);
+}
+#posApp .pos-confirm-print-status.is-ready {
+    background: #f0fdf4;
+    border-color: rgba(34, 197, 94, .22);
+    color: #166534;
+}
+#posApp .pos-confirm-print-status.is-warning {
+    background: #fffbeb;
+    border-color: rgba(245, 158, 11, .28);
+    color: #92400e;
 }
 #posApp .pos-combinar-modal {
     width: min(520px, 96vw);

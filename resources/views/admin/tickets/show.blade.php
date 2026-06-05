@@ -8,8 +8,9 @@
         </div>
         <div class="d-flex gap-2">
             @if (auth()->user()->hasPermission('sales.reprint') && $ticket->isReprintable())
-                <button id="reprintTicketBtn" class="btn btn-outline-info" type="button"
-                        data-reprint-url="{{ route('admin.tickets.reprint', $ticket, false) }}">
+                <button id="reprintTicketBtnLive" class="btn btn-outline-info" type="button"
+                        data-reprint-url="{{ route('admin.tickets.reprint', $ticket, false) }}"
+                        data-print-jobs-url="{{ route('admin.tickets.print-jobs', $ticket, false) }}">
                     <i class="bi bi-printer me-1"></i>Reimprimir
                 </button>
             @endif
@@ -100,30 +101,33 @@
                 </div>
             </div>
 
-            @if ($ticket->printJobs->isNotEmpty())
-                <div class="card mt-4">
-                    <div class="card-header bg-white">
-                        <h2 class="h6 mb-0">Impresiones</h2>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table table-sm align-middle mb-0">
-                            <thead>
-                                <tr><th>Tipo</th><th>Estado</th><th>Intentos</th><th>Fecha</th></tr>
-                            </thead>
-                            <tbody>
-                                @foreach ($ticket->printJobs as $job)
-                                    <tr>
-                                        <td>{{ $job->type }}</td>
-                                        <td><x-status-badge :status="$job->status" /></td>
-                                        <td>{{ $job->attempts }}</td>
-                                        <td class="small">{{ $job->created_at->format('Y-m-d H:i') }}</td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
+            <div class="card mt-4">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center gap-3">
+                    <h2 class="h6 mb-0">Impresiones</h2>
+                    <small class="text-secondary" id="printJobsFeedback"></small>
                 </div>
-            @endif
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr><th>Tipo</th><th>Estado</th><th>Intentos</th><th>Fecha</th></tr>
+                        </thead>
+                        <tbody id="printJobsBody">
+                            @forelse ($ticket->printJobs as $job)
+                                <tr>
+                                    <td>{{ $job->type }}</td>
+                                    <td><x-status-badge :status="$job->status" /></td>
+                                    <td>{{ $job->attempts }}</td>
+                                    <td class="small">{{ $job->created_at->format('Y-m-d H:i') }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="text-center text-secondary py-3">Aún no hay trabajos de impresión.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
 
         <div class="col-lg-4">
@@ -142,7 +146,7 @@
                         <dt class="col-5 text-secondary">Vendido</dt>
                         <dd class="col-7">{{ $ticket->sold_at->format('Y-m-d H:i:s') }}</dd>
                         <dt class="col-5 text-secondary">Impresiones</dt>
-                        <dd class="col-7">{{ $ticket->print_count }}</dd>
+                        <dd class="col-7" id="ticketPrintCount">{{ $ticket->print_count }}</dd>
                         @if ($ticket->status === 'CANCELLED')
                             <dt class="col-5 text-secondary">Anulado por</dt>
                             <dd class="col-7">{{ $ticket->cancelledBy?->username ?: '—' }}</dd>
@@ -156,7 +160,7 @@
             <div class="card">
                 <div class="card-body">
                     <h2 class="h6 mb-3">Contenido de impresión</h2>
-                    <pre class="bg-light border rounded p-3 mb-0 small" style="font-family: monospace; line-height: 1.3; font-size: .75rem;">{{ optional($ticket->printJobs->first())->content ?? 'No generado' }}</pre>
+                    <pre id="printContentPreview" class="bg-light border rounded p-3 mb-0 small" style="font-family: monospace; line-height: 1.3; font-size: .75rem;">{{ optional($ticket->printJobs->first())->content ?? 'No generado' }}</pre>
                 </div>
             </div>
         </div>
@@ -217,6 +221,164 @@
                         throw new Error(payload.message || 'No se pudo solicitar la reimpresión.');
                     }
                 } catch (error) {
+                    alert(error.message || 'Ocurrio un error al reimprimir el ticket.');
+                } finally {
+                    reprintBtn.disabled = false;
+                }
+            });
+        })();
+    </script>
+    <script>
+        (function () {
+            const reprintBtn = document.getElementById('reprintTicketBtnLive');
+            const printJobsBody = document.getElementById('printJobsBody');
+            const printJobsFeedback = document.getElementById('printJobsFeedback');
+            const printContentPreview = document.getElementById('printContentPreview');
+            const printCount = document.getElementById('ticketPrintCount');
+            const printJobsUrl = reprintBtn?.dataset.printJobsUrl ?? @json(route('admin.tickets.print-jobs', $ticket, false));
+            let pollTimer = null;
+            let pollRemaining = 0;
+
+            const STATUS_MAP = {
+                PENDING: { label: 'Pendiente', className: 'bg-warning text-dark' },
+                PROCESSING: { label: 'Procesando', className: 'bg-info text-dark' },
+                FAILED: { label: 'Fallido', className: 'bg-danger' },
+                PRINTED: { label: 'Impreso', className: 'bg-success' },
+            };
+
+            function escapeHtml(value) {
+                return String(value ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            }
+
+            function setFeedback(message = '', tone = 'muted') {
+                if (!printJobsFeedback) return;
+
+                printJobsFeedback.className = tone === 'danger'
+                    ? 'text-danger'
+                    : tone === 'success'
+                        ? 'text-success'
+                        : 'text-secondary';
+                printJobsFeedback.textContent = message;
+            }
+
+            function renderPrintJobs(payload) {
+                if (!printJobsBody || !payload) return;
+
+                const jobs = Array.isArray(payload.jobs) ? payload.jobs : [];
+                if (!jobs.length) {
+                    printJobsBody.innerHTML = '<tr><td colspan="4" class="text-center text-secondary py-3">Aún no hay trabajos de impresión.</td></tr>';
+                } else {
+                    printJobsBody.innerHTML = jobs.map((job) => {
+                        const fallback = STATUS_MAP[job.status] || { label: job.status || '—', className: 'bg-secondary' };
+                        const statusLabel = job.status_label || fallback.label;
+                        const statusClass = job.status_class || fallback.className;
+
+                        return `
+                            <tr>
+                                <td>${escapeHtml(job.type || '—')}</td>
+                                <td><span class="badge ${escapeHtml(statusClass)}">${escapeHtml(statusLabel)}</span></td>
+                                <td>${escapeHtml(job.attempts ?? 0)}</td>
+                                <td class="small">${escapeHtml(job.created_at || '—')}</td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+
+                if (printContentPreview) {
+                    printContentPreview.textContent = payload.content || 'No generado';
+                }
+
+                if (printCount) {
+                    printCount.textContent = payload.print_count ?? jobs.length ?? 0;
+                }
+            }
+
+            async function refreshPrintJobs({ silent = true } = {}) {
+                try {
+                    const response = await fetch(printJobsUrl, {
+                        credentials: 'same-origin',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('No se pudo refrescar la cola de impresión.');
+                    }
+
+                    const payload = await response.json();
+                    renderPrintJobs(payload);
+
+                    if (!silent) {
+                        setFeedback('Cola de impresión actualizada.', 'success');
+                    }
+                } catch (error) {
+                    if (!silent) {
+                        setFeedback(error.message || 'No se pudo refrescar la cola de impresión.', 'danger');
+                    }
+                }
+            }
+
+            function startPolling(cycles = 8) {
+                pollRemaining = cycles;
+                if (pollTimer) {
+                    clearInterval(pollTimer);
+                }
+
+                pollTimer = setInterval(async () => {
+                    await refreshPrintJobs();
+                    pollRemaining -= 1;
+
+                    if (pollRemaining <= 0) {
+                        clearInterval(pollTimer);
+                        pollTimer = null;
+                    }
+                }, 1500);
+            }
+
+            refreshPrintJobs();
+            startPolling(10);
+
+            if (!reprintBtn) {
+                return;
+            }
+
+            reprintBtn.addEventListener('click', async function () {
+                const terminal = window.BSLotteryTerminal?.get?.() || null;
+                reprintBtn.disabled = true;
+                setFeedback('Solicitando reimpresión...', 'muted');
+
+                try {
+                    const response = await fetch(reprintBtn.dataset.reprintUrl, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        },
+                        body: JSON.stringify({
+                            terminal_key: terminal?.key || null,
+                            terminal_name: terminal?.name || null,
+                        }),
+                    });
+
+                    const payload = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(payload.message || 'No se pudo solicitar la reimpresión.');
+                    }
+
+                    setFeedback('Reimpresión enviada a la cola.', 'success');
+                    await refreshPrintJobs();
+                    startPolling(12);
+                } catch (error) {
+                    setFeedback(error.message || 'Ocurrió un error al reimprimir el ticket.', 'danger');
                     alert(error.message || 'Ocurrio un error al reimprimir el ticket.');
                 } finally {
                     reprintBtn.disabled = false;

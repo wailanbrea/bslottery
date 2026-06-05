@@ -224,7 +224,7 @@ class TicketSaleService
                 'ticket_id' => $ticket->id,
                 'printer_config_id' => $printerConfig?->id,
                 'type' => 'TICKET',
-                'content' => $this->ticketPrintFormatter->format($ticket, $printerConfig?->paper_width ?? '58MM'),
+                'content' => $this->ticketPrintFormatter->format($ticket, $printerConfig?->paper_width ?? '58MM', false, $printerConfig),
                 'status' => $printerConfig ? 'PENDING' : 'FAILED',
                 'error_message' => $printerConfig ? null : 'No hay impresora configurada para esta terminal.',
             ]);
@@ -337,7 +337,7 @@ class TicketSaleService
             'ticket_id' => $ticket->id,
             'printer_config_id' => $printerConfig?->id,
             'type' => 'REPRINT',
-            'content' => $this->ticketPrintFormatter->format($ticket, $printerConfig?->paper_width ?? '58MM', true),
+            'content' => $this->ticketPrintFormatter->format($ticket, $printerConfig?->paper_width ?? '58MM', true, $printerConfig),
             'status' => $printerConfig ? 'PENDING' : 'FAILED',
             'error_message' => $printerConfig ? null : 'No hay impresora configurada para esta terminal.',
         ]);
@@ -350,6 +350,11 @@ class TicketSaleService
         );
 
         return $job;
+    }
+
+    public function resolveConfiguredPrinter(Branch $branch, ?string $terminalKey = null): ?PrinterConfig
+    {
+        return $this->resolvePrinterConfig($branch, $terminalKey);
     }
 
     private function validateSalePreconditions(Branch $branch, Draw $draw): void
@@ -541,7 +546,7 @@ class TicketSaleService
                 'printer_config_id' => $printerConfig?->id,
                 'device_id' => $device?->id,
                 'type' => 'TICKET',
-                'content' => $this->ticketPrintFormatter->format($ticket, $printerConfig?->paper_width ?? '58MM'),
+                'content' => $this->ticketPrintFormatter->format($ticket, $printerConfig?->paper_width ?? '58MM', false, $printerConfig),
                 'status' => $printerConfig ? 'PENDING' : 'FAILED',
                 'error_message' => $printerConfig ? null : 'No hay impresora configurada para este dispositivo.',
             ]);
@@ -568,6 +573,7 @@ class TicketSaleService
                 ->where(function ($query) use ($branch): void {
                     $query->where('branch_id', $branch->id)->orWhereNull('branch_id');
                 })
+                ->orderByDesc('is_default')
                 ->orderByRaw('CASE WHEN branch_id = ? THEN 0 ELSE 1 END', [$branch->id])
                 ->orderByDesc('updated_at')
                 ->first();
@@ -589,6 +595,7 @@ class TicketSaleService
             ->where(function ($query) use ($branch): void {
                 $query->where('branch_id', $branch->id)->orWhereNull('branch_id');
             })
+            ->orderByDesc('is_default')
             ->orderByRaw('CASE WHEN branch_id = ? THEN 0 ELSE 1 END', [$branch->id])
             ->orderBy('id')
             ->first();

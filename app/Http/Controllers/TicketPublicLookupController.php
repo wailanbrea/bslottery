@@ -79,4 +79,33 @@ class TicketPublicLookupController extends Controller
             'hayGanadores' => $ticket->winnerTickets->isNotEmpty(),
         ]);
     }
+
+    public function showByTicketNumber(string $ticketNumber, string $code): View|Response
+    {
+        $ticket = Ticket::query()
+            ->with([
+                'company:id,name,legal_name',
+                'branch:id,company_id,name,address,phone',
+                'details.lottery:id,name',
+                'details.draw:id,name,draw_date,scheduled_time,status',
+                'details.betType:id,name,code',
+                'winnerTickets.ticketDetail.lottery:id,name',
+                'winnerTickets.ticketDetail.draw:id,name',
+            ])
+            ->where('ticket_number', $ticketNumber)
+            ->first();
+
+        if (! $ticket || ! hash_equals($this->validationCode($ticket), strtoupper($code))) {
+            return response()->view('public.ticket.not_found', [], 404);
+        }
+
+        return $this->show($ticket->uuid);
+    }
+
+    private function validationCode(Ticket $ticket): string
+    {
+        $hash = substr(preg_replace('/[^A-Z0-9]/', '', strtoupper(hash('crc32b', $ticket->uuid.$ticket->ticket_number))), 0, 8);
+
+        return substr($hash, 0, 4).'-'.substr($hash, 4, 4);
+    }
 }
