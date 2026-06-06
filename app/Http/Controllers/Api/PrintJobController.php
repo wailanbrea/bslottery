@@ -16,6 +16,13 @@ class PrintJobController extends Controller
     private const PROCESSING_TIMEOUT_MINUTES = 2;
 
     /**
+     * Edad maxima de un trabajo PENDING. Pasado este tiempo se considera vencido y NUNCA se imprime:
+     * evita que tickets generados con el conector apagado (ej. de la noche anterior) se descarguen
+     * de golpe en el siguiente encendido.
+     */
+    private const PENDING_EXPIRY_MINUTES = 5;
+
+    /**
      * Returns pending print jobs for the authenticated user's branch.
      * Called by the Print Agent JS bridge on page load.
      */
@@ -51,11 +58,32 @@ class PrintJobController extends Controller
                     'updated_at' => now(),
                 ]);
 
-            $jobs = DB::transaction(function () use ($user, $terminalKey) {
+            // Vencer los PENDING demasiado viejos: nunca se imprimen (ticket fuera de tiempo).
+            // Se mide por created_at (instante en que se genero el ticket), no por updated_at.
+            $expiryThreshold = now()->subMinutes(self::PENDING_EXPIRY_MINUTES);
+
+            PrintJob::query()
+                ->where('company_id', $user->company_id)
+                ->when($user->branch_id, fn ($q) => $q->where('branch_id', $user->branch_id))
+                ->where('status', 'PENDING')
+                ->where('created_at', '<', $expiryThreshold)
+                ->whereHas('printerConfig', function ($query) use ($terminalKey): void {
+                    $query->where('status', 'ACTIVE')
+                        ->where('terminal_key', $terminalKey);
+                })
+                ->update([
+                    'status' => 'FAILED',
+                    'error_message' => 'Ticket vencido: no se imprimio dentro de los '
+                        . self::PENDING_EXPIRY_MINUTES . ' minutos.',
+                    'updated_at' => now(),
+                ]);
+
+            $jobs = DB::transaction(function () use ($user, $terminalKey, $expiryThreshold) {
                 $jobs = PrintJob::query()
                     ->where('company_id', $user->company_id)
                     ->when($user->branch_id, fn ($q) => $q->where('branch_id', $user->branch_id))
                     ->where('status', 'PENDING')
+                    ->where('created_at', '>=', $expiryThreshold)
                     ->whereHas('printerConfig', function ($query) use ($terminalKey): void {
                         $query->where('status', 'ACTIVE')
                             ->where('terminal_key', $terminalKey);
@@ -95,6 +123,7 @@ class PrintJobController extends Controller
                 'printing_mode'    => $job->printerConfig?->printing_mode ?? 'RAW_ESCPOS',
                 'auto_cut'         => (bool) ($job->printerConfig?->auto_cut ?? true),
                 'terminal_key'     => $job->printerConfig?->terminal_key,
+                'created_at'       => $job->created_at?->toIso8601String(),
             ]));
         } catch (\Throwable $e) {
             Log::warning('print-jobs/pending fallo transitorio; devolviendo cola vacia', [
