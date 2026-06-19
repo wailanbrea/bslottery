@@ -33,17 +33,27 @@ class CashService
             throw new \RuntimeException('Ya tienes una caja abierta (o reabierta) en esta sucursal. Cierrala antes de abrir otra.');
         }
 
-        return CashSession::create([
-            'company_id' => $branch->company_id,
-            'branch_id' => $branch->id,
-            'user_id' => $user->id,
-            'opened_by' => $user->id,
-            'opening_amount' => $openingAmount,
-            'expected_cash' => $openingAmount,
-            'status' => 'OPEN',
-            'opened_at' => now(),
-            'notes' => $notes,
-        ]);
+        // active_lock = 1 marca la caja como viva. El indice unico (branch_id, user_id, active_lock)
+        // es el backstop ante dos aperturas simultaneas que ambas pasen el chequeo anterior.
+        try {
+            return CashSession::create([
+                'company_id' => $branch->company_id,
+                'branch_id' => $branch->id,
+                'user_id' => $user->id,
+                'opened_by' => $user->id,
+                'opening_amount' => $openingAmount,
+                'expected_cash' => $openingAmount,
+                'status' => 'OPEN',
+                'active_lock' => 1,
+                'opened_at' => now(),
+                'notes' => $notes,
+            ]);
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ($this->isUniqueViolation($e)) {
+                throw new \RuntimeException('Ya tienes una caja abierta (o reabierta) en esta sucursal. Cierrala antes de abrir otra.');
+            }
+            throw $e;
+        }
     }
 
     public function recordMovement(
@@ -142,6 +152,7 @@ class CashService
                 'shortage_amount' => $shortage,
                 'surplus_amount' => $surplus,
                 'status' => 'CLOSED',
+                'active_lock' => null,
                 'closed_by' => $closedBy->id,
                 'closed_at' => $closedAt,
                 'notes' => $notes ? trim(($session->notes ? $session->notes."\n" : '').$notes) : $session->notes,
@@ -207,25 +218,48 @@ class CashService
             throw new \RuntimeException('Solo se puede reabrir una caja cerrada o confirmada.');
         }
 
-        CashIncident::create([
-            'company_id' => $session->company_id,
-            'branch_id' => $session->branch_id,
-            'cash_session_id' => $session->id,
-            'cash_reconciliation_id' => $session->reconciliation?->id,
-            'user_id' => $user->id,
-            'type' => 'CASH_REOPENED',
-            'severity' => 'WARNING',
-            'status' => 'OPEN',
-            'title' => 'Reapertura de caja',
-            'description' => "Caja #{$session->id} reabierta. Motivo: ".($notes ?: 'No especificado'),
-        ]);
+        // Reabrir vuelve a marcar la caja como viva (active_lock = 1). Si el cajero ya tiene otra
+        // caja activa, el indice unico lo impide: se traduce a un mensaje claro y se revierte el
+        // incidente creado (todo dentro de la transaccion).
+        try {
+            return DB::transaction(function () use ($session, $user, $notes): CashSession {
+                CashIncident::create([
+                    'company_id' => $session->company_id,
+                    'branch_id' => $session->branch_id,
+                    'cash_session_id' => $session->id,
+                    'cash_reconciliation_id' => $session->reconciliation?->id,
+                    'user_id' => $user->id,
+                    'type' => 'CASH_REOPENED',
+                    'severity' => 'WARNING',
+                    'status' => 'OPEN',
+                    'title' => 'Reapertura de caja',
+                    'description' => "Caja #{$session->id} reabierta. Motivo: ".($notes ?: 'No especificado'),
+                ]);
 
-        $session->update([
-            'status' => 'REOPENED',
-            'notes' => $notes ? trim(($session->notes ? $session->notes."\n" : '').'Reapertura: '.$notes) : $session->notes,
-        ]);
+                $session->update([
+                    'status' => 'REOPENED',
+                    'active_lock' => 1,
+                    'notes' => $notes ? trim(($session->notes ? $session->notes."\n" : '').'Reapertura: '.$notes) : $session->notes,
+                ]);
 
-        return $session;
+                return $session;
+            });
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ($this->isUniqueViolation($e)) {
+                throw new \RuntimeException('El cajero ya tiene una caja activa en esta sucursal; cierrala antes de reabrir esta.');
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Detecta una violacion de restriccion UNIQUE de forma portable (MySQL y SQLite usan el
+     * SQLSTATE 23000; el fallback por mensaje cubre variaciones del driver).
+     */
+    private function isUniqueViolation(\Illuminate\Database\QueryException $e): bool
+    {
+        return (string) $e->getCode() === '23000'
+            || str_contains(strtolower($e->getMessage()), 'unique');
     }
 
     public function getActiveSession(int $branchId, int $userId): ?CashSession

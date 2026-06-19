@@ -70,6 +70,7 @@ class PermissionSeeder extends Seeder
         'prizes.pay',
         'cash.open',
         'cash.view',
+        'cash.view_all',
         'cash.movement',
         'cash.close',
         'cash.confirm',

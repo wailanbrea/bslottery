@@ -244,7 +244,7 @@
                                     <span>Historial</span>
                                 </a>
                             </li>
-                            @if (auth()->user()->isSuperAdmin() || auth()->user()->hasPermission('branches.view'))
+                            @if (auth()->user()->isSuperAdmin() || auth()->user()->hasPermission('cash.view_all'))
                                 <li class="nav-item">
                                     <a class="nav-link py-1 {{ request()->routeIs('admin.cash.by-branch') ? 'active' : '' }}" href="{{ route('admin.cash.by-branch') }}">
                                         <i class="bi bi-shop"></i>

@@ -353,7 +353,7 @@ class CashController extends Controller
     {
         $user = auth()->user();
 
-        return $user->isSuperAdmin() || $user->hasPermission('branches.view');
+        return $user->isSuperAdmin() || $user->hasPermission('cash.view_all');
     }
 
     private function ensureSessionScope(CashSession $session): void

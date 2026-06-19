@@ -32,6 +32,7 @@ class CashSession extends Model
         'shortage_amount',
         'surplus_amount',
         'status',
+        'active_lock',
         'opened_at',
         'closed_at',
         'confirmed_by',
