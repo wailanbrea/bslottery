@@ -562,7 +562,7 @@ class TicketSaleService
         $terminalKey = $terminalKey !== null ? trim($terminalKey) : null;
 
         if ($terminalKey) {
-            return PrinterConfig::where('company_id', $branch->company_id)
+            $byTerminal = PrinterConfig::where('company_id', $branch->company_id)
                 ->where('status', 'ACTIVE')
                 ->where('terminal_key', $terminalKey)
                 ->where(function ($query) use ($branch): void {
@@ -571,6 +571,15 @@ class TicketSaleService
                 ->orderByRaw('CASE WHEN branch_id = ? THEN 0 ELSE 1 END', [$branch->id])
                 ->orderByDesc('updated_at')
                 ->first();
+
+            if ($byTerminal) {
+                return $byTerminal;
+            }
+
+            // Si el terminal_key recibido no coincide con ninguna impresora ACTIVE no se aborta la
+            // resolucion: se cae al default de la sucursal / primera disponible. Asi una terminal con
+            // un terminal_key viejo o mal configurado sigue imprimiendo en vez de generar un PrintJob
+            // FAILED "No hay impresora configurada".
         }
 
         if ($branch->default_printer_id) {

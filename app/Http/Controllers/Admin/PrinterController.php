@@ -80,6 +80,7 @@ class PrinterController extends Controller
         $data['printing_mode'] ??= 'RAW_ESCPOS';
         $data['auto_cut'] = (bool) ($data['auto_cut'] ?? true);
         $this->assertAllowedPrinterIdentifier($data);
+        $this->assertConnectorTerminalKey($data);
 
         $printer = PrinterConfig::create($data);
         $this->syncBranchDefaultPrinter($printer);
@@ -125,6 +126,7 @@ class PrinterController extends Controller
         $data['printing_mode'] ??= 'RAW_ESCPOS';
         $data['auto_cut'] = (bool) ($data['auto_cut'] ?? true);
         $this->assertAllowedPrinterIdentifier($data);
+        $this->assertConnectorTerminalKey($data);
         $printer->update($data);
         $this->syncBranchDefaultPrinter($printer);
 
@@ -307,6 +309,29 @@ class PrinterController extends Controller
         if (! PrinterTargetGuard::isAllowedForConnector($data['printer_identifier'] ?? null)) {
             throw ValidationException::withMessages([
                 'printer_identifier' => PrinterTargetGuard::connectorValidationMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Una impresora PRINT_CONNECTOR DEBE tener un terminal_key no vacio: el conector solo recibe
+     * trabajos cuyo PrinterConfig.terminal_key coincide exactamente con el suyo. Un terminal_key en
+     * blanco produce una impresora "huerfana" que igual puede quedar como default de la sucursal
+     * (syncBranchDefaultPrinter), de modo que las ventas se enganchan a ella pero el conector nunca
+     * ve esos trabajos: el ticket queda PENDING y vence sin imprimirse. Lo correcto es aprovisionar
+     * desde el conector (que asigna el terminal_key automaticamente).
+     */
+    private function assertConnectorTerminalKey(array $data): void
+    {
+        if (($data['connection_type'] ?? null) !== 'PRINT_CONNECTOR') {
+            return;
+        }
+
+        if (trim((string) ($data['terminal_key'] ?? '')) === '') {
+            throw ValidationException::withMessages([
+                'terminal_key' => 'Una impresora del Print Connector requiere su terminal key. '
+                    . 'Aprovisiona la caja desde el conector (pegando el codigo) para que se complete '
+                    . 'automaticamente, o copia aqui el terminal key que muestra el conector.',
             ]);
         }
     }
