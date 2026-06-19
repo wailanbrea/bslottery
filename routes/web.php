@@ -193,6 +193,10 @@ Route::middleware(['auth', 'active.context'])
         Route::get('cash/current', [CashController::class, 'current'])
             ->middleware('permission:cash.view')
             ->name('cash.current');
+        // Debe ir ANTES del comodin cash/{session} para que "by-branch" no se interprete como id.
+        Route::get('cash/by-branch', [CashController::class, 'byBranch'])
+            ->middleware('permission:cash.view')
+            ->name('cash.by-branch');
         Route::get('cash/open', [CashController::class, 'openForm'])
             ->middleware('permission:cash.open')
             ->name('cash.open');

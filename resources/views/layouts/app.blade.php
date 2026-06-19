@@ -244,6 +244,14 @@
                                     <span>Historial</span>
                                 </a>
                             </li>
+                            @if (auth()->user()->isSuperAdmin() || auth()->user()->hasPermission('branches.view'))
+                                <li class="nav-item">
+                                    <a class="nav-link py-1 {{ request()->routeIs('admin.cash.by-branch') ? 'active' : '' }}" href="{{ route('admin.cash.by-branch') }}">
+                                        <i class="bi bi-shop"></i>
+                                        <span>Cajas por Sucursal</span>
+                                    </a>
+                                </li>
+                            @endif
                             @if (auth()->user()->hasPermission('cash.transfers.view'))
                                 <li class="nav-item">
                                     <a class="nav-link py-1 {{ request()->routeIs('admin.cash.transfers.*') ? 'active' : '' }}" href="{{ route('admin.cash.transfers.index') }}">

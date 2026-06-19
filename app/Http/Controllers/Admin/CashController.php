@@ -39,6 +39,9 @@ class CashController extends Controller
                 'tickets',
             ])
             ->where('company_id', $companyId)
+            // Un usuario sin alcance multi-sucursal (cajero) solo ve SUS propias cajas, no las de
+            // sus companeros. La vista global por sucursal es exclusiva de admin (byBranch).
+            ->when(! $canViewCompanyWide, fn ($q) => $q->where('user_id', auth()->id()))
             ->when($selectedBranchId, fn ($q) => $q->where('branch_id', $selectedBranchId))
             ->when(
                 in_array($selectedStatus, ['OPEN', 'CLOSED', 'CONFIRMED', 'REOPENED'], true),
@@ -60,6 +63,49 @@ class CashController extends Controller
             'selectedBranchId',
             'selectedStatus',
         ));
+    }
+
+    /**
+     * Vista "Cajas por Sucursal": panorama company-wide de todas las cajas de todas las bancas,
+     * agrupadas por sucursal, con sus cajas activas y su historial reciente. Solo para usuarios con
+     * alcance multi-sucursal (admin / super admin). El detalle de movimientos de cada caja se ve en
+     * cash.show.
+     */
+    public function byBranch(): View
+    {
+        Gate::authorize('viewAny', CashSession::class);
+        abort_unless($this->canViewCompanyWide(), 403);
+
+        $companyId = session('active_company_id');
+
+        $branches = Branch::where('company_id', $companyId)->orderBy('name')->get();
+
+        $branchSummaries = $branches->map(function (Branch $branch) {
+            $sessions = CashSession::with(['user', 'openedBy', 'closedBy', 'reconciliation'])
+                ->withCount([
+                    'incidents' => fn ($q) => $q->where('status', 'OPEN'),
+                    'movements',
+                    'tickets',
+                ])
+                ->where('branch_id', $branch->id)
+                ->orderByRaw("CASE WHEN status IN ('OPEN', 'REOPENED') THEN 0 ELSE 1 END")
+                ->orderByDesc('opened_at')
+                ->limit(20)
+                ->get();
+
+            $active = $sessions->whereIn('status', ['OPEN', 'REOPENED']);
+
+            return (object) [
+                'branch' => $branch,
+                'sessions' => $sessions,
+                'active' => $active,
+                'open_count' => $active->count(),
+                'open_expected_total' => $active->sum(fn ($s) => (float) $s->expected_cash),
+                'open_sales_total' => $active->sum(fn ($s) => (float) $s->sales_total),
+            ];
+        });
+
+        return view('admin.cash.by-branch', compact('branchSummaries'));
     }
 
     public function current(): View|RedirectResponse

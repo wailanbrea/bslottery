@@ -26,11 +26,11 @@ class CashService
 
         $existingOpen = CashSession::where('branch_id', $branch->id)
             ->where('user_id', $user->id)
-            ->where('status', 'OPEN')
+            ->whereIn('status', ['OPEN', 'REOPENED'])
             ->exists();
 
         if ($existingOpen) {
-            throw new \RuntimeException('Ya tienes una caja abierta en esta sucursal.');
+            throw new \RuntimeException('Ya tienes una caja abierta (o reabierta) en esta sucursal. Cierrala antes de abrir otra.');
         }
 
         return CashSession::create([
@@ -230,9 +230,13 @@ class CashService
 
     public function getActiveSession(int $branchId, int $userId): ?CashSession
     {
+        // Una caja "activa" es OPEN o REOPENED. Se prefiere OPEN para que las ventas del dia caigan
+        // siempre en la caja abierta y no en una reapertura de correccion que pudiera coexistir.
         return CashSession::where('branch_id', $branchId)
             ->where('user_id', $userId)
-            ->where('status', 'OPEN')
+            ->whereIn('status', ['OPEN', 'REOPENED'])
+            ->orderByRaw("CASE WHEN status = 'OPEN' THEN 0 ELSE 1 END")
+            ->orderByDesc('opened_at')
             ->first();
     }
 

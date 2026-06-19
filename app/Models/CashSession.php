@@ -118,7 +118,10 @@ class CashSession extends Model
 
     public function isOpen(): bool
     {
-        return $this->status === 'OPEN';
+        // REOPENED tambien es una caja "viva": un cierre reabierto debe poder recibir movimientos
+        // de correccion y volver a cerrarse. Sin esto la caja reabierta quedaba huerfana (no se
+        // podia mover ni re-cerrar desde el flujo normal de caja).
+        return in_array($this->status, ['OPEN', 'REOPENED'], true);
     }
 
     public function recalculateExpectedCash(): void
