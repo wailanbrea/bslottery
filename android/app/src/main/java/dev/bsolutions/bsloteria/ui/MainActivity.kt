@@ -12,6 +12,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.WorkManager
+import androidx.work.Constraints
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
 import dagger.hilt.android.AndroidEntryPoint
 import dev.bsolutions.bsloteria.ui.navigation.Screen
 import dev.bsolutions.bsloteria.ui.screen.cash.CashScreen
@@ -28,6 +31,11 @@ import dev.bsolutions.bsloteria.ui.screen.tickets.TicketDetailScreen
 import dev.bsolutions.bsloteria.ui.screen.tickets.TicketsScreen
 import dev.bsolutions.bsloteria.ui.theme.BSLoteriaTheme
 import dev.bsolutions.bsloteria.worker.SyncWorker
+import dev.bsolutions.bsloteria.worker.LicenseValidationWorker
+import dev.bsolutions.bsloteria.ui.screen.license.LicenseGateScreen
+import dev.bsolutions.bsloteria.ui.screen.license.LicenseUiStatus
+import dev.bsolutions.bsloteria.ui.screen.license.LicenseViewModel
+import java.util.concurrent.TimeUnit
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -43,9 +51,28 @@ class MainActivity : ComponentActivity() {
             SyncWorker.periodicRequest()
         )
 
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "bslottery-license-validation",
+            ExistingPeriodicWorkPolicy.KEEP,
+            PeriodicWorkRequestBuilder<LicenseValidationWorker>(1, TimeUnit.HOURS)
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .build(),
+        )
+
         setContent {
             BSLoteriaTheme {
-                BSLoteriaNavHost()
+                val licenseViewModel: LicenseViewModel = hiltViewModel()
+                val licenseState by licenseViewModel.state.collectAsState()
+                if (licenseState.status == LicenseUiStatus.VALID || licenseState.status == LicenseUiStatus.OFFLINE_GRACE) {
+                    BSLoteriaNavHost()
+                } else {
+                    LicenseGateScreen(
+                        state = licenseState,
+                        onActivate = licenseViewModel::activate,
+                        onRetry = licenseViewModel::validate,
+                        onChangeActivation = licenseViewModel::showActivation,
+                    )
+                }
             }
         }
     }

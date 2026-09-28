@@ -45,7 +45,10 @@
                         <td class="text-end fw-semibold">{{ number_format((int) ($job->ticket?->print_count ?? 0)) }}</td>
                         <td>{{ $job->printerConfig?->name ?? '—' }}</td>
                         <td>{{ $job->device?->name ?? '—' }}</td>
-                        <td><x-status-badge :status="$job->status" /></td>
+                        <td>
+                            <x-status-badge :status="$job->status" />
+                            <span class="visually-hidden">{{ $job->status }}</span>
+                        </td>
                         <td class="text-end">{{ number_format((int) $job->attempts) }}</td>
                         <td class="small">{{ $job->printed_at?->format('d/m/Y H:i') ?? '—' }}</td>
                         <td class="small">{{ $job->created_at?->format('d/m/Y H:i') ?? '—' }}</td>

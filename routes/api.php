@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\MobileController;
 use App\Http\Controllers\Api\OfflineController;
 use App\Http\Controllers\Api\PrintJobController;
+use App\Http\Controllers\Api\PrintAgentController;
 use App\Http\Controllers\ApiController;
 use Illuminate\Support\Facades\Route;
 
@@ -13,7 +14,7 @@ Route::get('/draws', [ApiController::class, 'draws']);
 Route::get('/bet-types', [ApiController::class, 'betTypes']);
 
 // Protegidas — requieren token Sanctum + dispositivo no bloqueado
-Route::middleware(['auth:sanctum', 'device.authorized'])->group(function (): void {
+Route::middleware(['auth:sanctum', 'device.authorized', 'license.api'])->group(function (): void {
     // Bootstrap online
     Route::get('/bootstrap', [OfflineController::class, 'bootstrap']);
 
@@ -32,6 +33,7 @@ Route::middleware(['auth:sanctum', 'device.authorized'])->group(function (): voi
     Route::post('/offline/conflicts/{conflict}/resolve', [OfflineController::class, 'resolveConflict']);
 
     // Print Agent bridge
+    Route::get('/print-agent/config', [PrintAgentController::class, 'config']);
     Route::get('/print-jobs/pending', [PrintJobController::class, 'pending']);
     Route::post('/print-jobs/{uuid}/ack', [PrintJobController::class, 'ack']);
 });
@@ -39,7 +41,7 @@ Route::middleware(['auth:sanctum', 'device.authorized'])->group(function (): voi
 // ── Mobile (Android app) ─────────────────────────────────────────────────────
 Route::post('/mobile/login', [MobileController::class, 'login']);
 
-Route::middleware(['auth:sanctum', 'device.authorized'])->prefix('mobile')->group(function (): void {
+Route::middleware(['auth:sanctum', 'device.authorized', 'license.api'])->prefix('mobile')->group(function (): void {
     Route::post('/logout', [MobileController::class, 'logout']);
     Route::get('/sync/data', [MobileController::class, 'syncData']);
     Route::get('/tickets', [MobileController::class, 'tickets']);

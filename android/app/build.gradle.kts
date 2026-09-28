@@ -44,6 +44,28 @@ android {
 
         buildConfigField("String", "SERVER_URL", serverUrl.asBuildConfigString())
         buildConfigField("String", "API_BASE_URL", "$serverUrl/api/".asBuildConfigString())
+
+        val licenseApiUrl = providers.gradleProperty("BSOLUTIONS_LICENSE_API_URL")
+            .orElse("https://license-api.bsolutions.dev/v1/")
+            .get()
+            .trimEnd('/')
+            .plus('/')
+
+        require(licenseApiUrl.startsWith("https://")) {
+            "BSOLUTIONS_LICENSE_API_URL debe usar HTTPS. Recibido: $licenseApiUrl"
+        }
+
+        val licenseProjectCode = providers.gradleProperty("BSOLUTIONS_PROJECT_CODE")
+            .orElse("bslottery")
+            .get()
+            .trim()
+
+        require(licenseProjectCode.isNotBlank()) {
+            "BSOLUTIONS_PROJECT_CODE no puede estar vacío"
+        }
+
+        buildConfigField("String", "LICENSE_API_URL", licenseApiUrl.asBuildConfigString())
+        buildConfigField("String", "LICENSE_PROJECT_CODE", licenseProjectCode.asBuildConfigString())
     }
 
     signingConfigs {
@@ -166,6 +188,7 @@ dependencies {
 
     // Accompanist permissions
     implementation(libs.accompanist.permissions)
+    implementation(libs.security.crypto)
 }
 
 kotlin {

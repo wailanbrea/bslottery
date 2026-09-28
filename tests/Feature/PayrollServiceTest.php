@@ -307,7 +307,7 @@ class PayrollServiceTest extends TestCase
             'user_id'     => $this->admin->id,
         ]);
 
-        CashIncident::create([
+        CashIncident::forceCreate([
             'company_id'  => $this->branch->company_id,
             'branch_id'   => $this->branch->id,
             'user_id'     => $this->admin->id,
@@ -319,6 +319,7 @@ class PayrollServiceTest extends TestCase
             'amount'      => '1500.00',
             'resolved_by' => $this->admin->id,
             'resolved_at' => now(),
+            'created_at'  => '2026-05-15 10:00:00',
         ]);
 
         $detail = $this->generate()->details->first();

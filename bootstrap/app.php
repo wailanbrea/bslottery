@@ -3,6 +3,7 @@
 use App\Http\Middleware\EnsureActiveCompanyAndBranch;
 use App\Http\Middleware\EnsureDeviceIsAuthorized;
 use App\Http\Middleware\EnsureInitialSetupIsCompleted;
+use App\Http\Middleware\EnsureApiLicenseIsValid;
 use App\Http\Middleware\EnsureLicenseIsValid;
 use App\Http\Middleware\EnsurePasswordWasChanged;
 use App\Http\Middleware\EnsureUserHasPermission;
@@ -35,6 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'active.context' => EnsureActiveCompanyAndBranch::class,
             'permission' => EnsureUserHasPermission::class,
             'device.authorized' => EnsureDeviceIsAuthorized::class,
+            'license.api' => EnsureApiLicenseIsValid::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

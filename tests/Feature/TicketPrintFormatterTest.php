@@ -7,6 +7,7 @@ use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Draw;
 use App\Models\Lottery;
+use App\Models\PrinterConfig;
 use App\Models\Ticket;
 use App\Models\TicketDetail;
 use App\Models\User;
@@ -36,8 +37,7 @@ class TicketPrintFormatterTest extends TestCase
 
         $this->assertStringContainsString('BSLottery Demo', $content);
         $this->assertStringContainsString('Ticket: TEST-0001', $content);
-        $this->assertStringContainsString('LOTERIA: Loteka', $content);
-        $this->assertStringContainsString('Sorteo: Noche', $content);
+        $this->assertStringContainsString('Loteka Noche', $content);
         $this->assertStringContainsString('Q', $content);
         $this->assertStringContainsString('P', $content);
         $this->assertStringContainsString('T', $content);
@@ -47,33 +47,55 @@ class TicketPrintFormatterTest extends TestCase
         // El marcador [[QR:<url>]] lo reemplaza el print agent / BluetoothPrinterManager
         // por bytes ESC/POS de QR real. La URL es la ruta publica de consulta del ticket.
         $this->assertStringContainsString('[[QR:', $content);
-        $this->assertStringContainsString('/t/'.$ticket->uuid, $content);
+        $this->assertStringContainsString('/tv/', $content);
     }
 
     public function test_88mm_ticket_contains_table_amounts_prizes_and_totals(): void
     {
         $ticket = $this->createTicketFixture();
+        $printer = PrinterConfig::create([
+            'company_id' => $ticket->company_id,
+            'branch_id' => $ticket->branch_id,
+            'name' => 'Caja 88MM',
+            'printer_type' => 'THERMAL',
+            'connection_type' => 'WINDOWS_SHARED',
+            'paper_width' => '88MM',
+            'printer_identifier' => '\\\\localhost\\Caja88',
+            'show_potential_prize' => true,
+            'status' => 'ACTIVE',
+        ]);
 
-        $content = $this->formatter->format($ticket, '88MM');
+        $content = $this->formatter->format($ticket, '88MM', false, $printer);
 
-        $this->assertStringContainsString('Loteria    Sorteo   Tipo', $content);
+        $this->assertStringContainsString('Tipo', $content);
+        $this->assertStringContainsString('Numero', $content);
         $this->assertStringContainsString('Loteka', $content);
-        $this->assertStringContainsString('RD$35', $content);
-        $this->assertStringContainsString('RD$2,520', $content);
-        $this->assertStringContainsString('Total Apostado:', $content);
-        $this->assertStringContainsString('Premio Posible Total:', $content);
-        $this->assertStringContainsString('RD$595.00', $content);
-        $this->assertStringContainsString('RD$378,420.00', $content);
+        $this->assertStringContainsString('RD$ 35.00', $content);
+        $this->assertStringContainsString('RD$ 2,520.00', $content);
+        $this->assertStringContainsString('TOTAL PAGADO:', $content);
+        $this->assertStringContainsString('RD$ 595.00', $content);
+        $this->assertStringContainsString('RD$ 177,443.22', $content);
     }
 
     public function test_formatter_uses_ticket_data_and_saved_possible_prize_without_hardcoded_values(): void
     {
         $ticket = $this->createTicketFixture(companyName: 'Comercial Real SRL');
+        $printer = PrinterConfig::create([
+            'company_id' => $ticket->company_id,
+            'branch_id' => $ticket->branch_id,
+            'name' => 'Caja 88MM',
+            'printer_type' => 'THERMAL',
+            'connection_type' => 'WINDOWS_SHARED',
+            'paper_width' => '88MM',
+            'printer_identifier' => '\\\\localhost\\Caja88',
+            'show_potential_prize' => true,
+            'status' => 'ACTIVE',
+        ]);
 
-        $content = $this->formatter->format($ticket, '88MM');
+        $content = $this->formatter->format($ticket, '88MM', false, $printer);
 
         $this->assertStringContainsString('Comercial Real SRL', $content);
-        $this->assertStringContainsString('RD$123,456.78', $content);
+        $this->assertStringContainsString('RD$ 123,456.78', $content);
         $this->assertStringNotContainsString('Banca La Suerte', $content);
         $this->assertStringNotContainsString('Maria', $content);
     }

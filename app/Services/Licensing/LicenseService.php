@@ -25,6 +25,7 @@ class LicenseService
         'LICENSE_CANCELLED',
         'DEVICE_REVOKED',
         'DEVICE_BLOCKED',
+        'CLIENT_LOCATION_LIMIT_REACHED',
         'OFFLINE_MODE_NOT_ALLOWED',
         'OFFLINE_GRACE_EXPIRED',
         'OFFLINE_LAUNCH_LIMIT_REACHED',
@@ -212,7 +213,10 @@ class LicenseService
                 'metadata' => ($transportFailure || empty($result->metadata)) ? $existing?->metadata : $result->metadata,
                 'client' => ($transportFailure || empty($result->client)) ? $existing?->client : $result->client,
                 'location' => ($transportFailure || empty($result->location)) ? $existing?->location : $result->location,
-                'is_active' => true,
+                // An invalid first activation must remain unactivated so the
+                // web flow can ask for a new activation code. Once a license
+                // exists, retain the state for an explicit blocked response.
+                'is_active' => $valid || $transportFailure || (bool) ($existing?->license_key),
             ]
         );
 

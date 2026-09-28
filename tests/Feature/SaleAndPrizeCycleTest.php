@@ -579,6 +579,19 @@ class SaleAndPrizeCycleTest extends TestCase
     /** @test */
     public function full_sale_to_prize_cycle(): void
     {
+        PrinterConfig::create([
+            'company_id' => $this->branch->company_id,
+            'branch_id' => $this->branch->id,
+            'name' => 'Caja principal',
+            'printer_type' => 'THERMAL',
+            'connection_type' => 'WINDOWS_SHARED',
+            'paper_width' => '58MM',
+            'printer_identifier' => '\\\\localhost\\CajaPrincipal',
+            'terminal_key' => 'TEST01',
+            'is_default' => true,
+            'status' => 'ACTIVE',
+        ]);
+
         // 1. Abrir caja
         $this->post(route('admin.cash.open.store'), [
             'branch_id' => $this->branch->id,
@@ -1281,6 +1294,7 @@ class SaleAndPrizeCycleTest extends TestCase
             'connection_type' => 'WINDOWS_SHARED',
             'paper_width' => '88MM',
             'printer_identifier' => '\\\\localhost\\Caja88',
+            'show_potential_prize' => true,
             'status' => 'ACTIVE',
         ]);
 
@@ -1292,14 +1306,16 @@ class SaleAndPrizeCycleTest extends TestCase
 
         $this->assertNotNull($job);
         $this->assertEquals($printer->id, $job->printer_config_id);
-        $this->assertStringContainsString('Loteria    Sorteo   Tipo', $job->content);
-        $this->assertStringContainsString('RD$100', $job->content);
-        $this->assertStringContainsString('RD$8,000', $job->content);
+        $this->assertStringContainsString('Tipo', $job->content);
+        $this->assertStringContainsString('Numero', $job->content);
+        $this->assertStringContainsString('Apuesta', $job->content);
+        $this->assertStringContainsString('RD$ 100.00', $job->content);
+        $this->assertStringContainsString('RD$ 8,000.00', $job->content);
         // El marcador [[QR:<url>]] codifica la URL publica del ticket; el print agent
         // lo reemplaza por bytes ESC/POS de QR real al imprimir.
         $this->assertStringContainsString('[[QR:', $job->content);
-        $this->assertStringContainsString('/t/'.$ticket->uuid, $job->content);
-        $this->assertStringContainsString('VAL:', $job->content);
+        $this->assertStringContainsString('/tv/', $job->content);
+        $this->assertStringContainsString('Validacion:', $job->content);
 
         $this->post(route('admin.tickets.reprint', $ticket))
             ->assertRedirect()
@@ -1310,7 +1326,8 @@ class SaleAndPrizeCycleTest extends TestCase
         $this->assertNotNull($reprintJob);
         $this->assertEquals($printer->id, $reprintJob->printer_config_id);
         $this->assertStringContainsString('REIMPRESION', $reprintJob->content);
-        $this->assertStringContainsString('Loteria    Sorteo   Tipo', $reprintJob->content);
+        $this->assertStringContainsString('Tipo', $reprintJob->content);
+        $this->assertStringContainsString('Numero', $reprintJob->content);
     }
 
     /** @test */

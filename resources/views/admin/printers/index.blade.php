@@ -4,7 +4,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h1 class="h4 mb-1"><i class="bi bi-printer me-2" style="color: var(--argon-info);"></i>Impresoras</h1>
-        <p class="text-secondary mb-0">Impresoras térmicas gestionadas por BSolutions Print Connector.</p>
+        <p class="text-secondary mb-0">Impresoras térmicas gestionadas por BSM-POS Windows Agent.</p>
     </div>
     <div class="d-flex gap-2 align-items-center">
         @if (auth()->user()->hasPermission('printers.configure'))
@@ -17,22 +17,21 @@
 
 <div class="card mb-4">
     <div class="card-header bg-white">
-        <h2 class="h6 mb-0"><i class="bi bi-download me-2"></i>BSolutions Print Connector</h2>
+        <h2 class="h6 mb-0"><i class="bi bi-download me-2"></i>BSM-POS Windows Agent</h2>
     </div>
     <div class="card-body">
         <p class="text-secondary small mb-3">
-            El conector es una app de Windows que imprime los tickets en la impresora local. Se instala
-            una vez por caja y se autoconfigura pegando el código de esta sucursal.
+            El agente local de Windows imprime los tickets en la impresora conectada a la caja. Se instala
+            una vez por terminal y el navegador se comunica únicamente con el servicio local.
         </p>
         <ol class="small text-secondary mb-3">
-            <li><strong>Descarga el instalador</strong> y ejecútalo en la PC de la caja.</li>
-            <li>Abre <strong>BSolutions Print Connector</strong> → <strong>Configuración</strong> →
-                <strong>Aprovisionar con código</strong> y pega el código de abajo.</li>
-            <li>La caja quedará conectada e imprimiendo en la impresora que selecciones desde el conector.</li>
+            <li><strong>Instala BSM-POS Windows Agent</strong> como servicio en la PC de la caja.</li>
+            <li>Empareja la impresora, confirma el puerto COM y ejecuta una prueba local.</li>
+            <li>Configura la terminal con el código de aprovisionamiento de esta sucursal.</li>
         </ol>
         <div class="mb-3">
-            <a class="btn btn-primary" href="{{ asset('downloads/BSolutionsPrintConnectorSetup.exe') }}">
-                <i class="bi bi-box-arrow-down me-1"></i>Descargar instalador (.exe)
+            <a class="btn btn-primary" href="https://github.com/wailanbrea/bsmpos-windows-agent" target="_blank" rel="noopener">
+                <i class="bi bi-box-arrow-up-right me-1"></i>Descargar agente Windows
             </a>
         </div>
 
